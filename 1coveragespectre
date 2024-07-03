@@ -1,0 +1,58 @@
+# spectre_coverage.py
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon, Circle
+from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, get_spectre_points, SPECTRE_POINTS, Mystic_SPECTRE_POINTS
+
+# Parameters
+N_ITERATIONS = 3
+SENSOR_RADIUS = 1  # example radius, can be adjusted based on actual sensing range
+
+def generate_spectre_tiles():
+    shapes = buildSpectreBase()
+    for _ in range(N_ITERATIONS):
+        shapes = buildSupertiles(shapes)
+    return shapes
+
+def place_sensors_at_midpoints(shapes):
+    sensor_positions = []
+    for meta_tile_name, meta_tile in shapes.items():
+        if isinstance(meta_tile, MetaTile):
+            for tile, transformation in zip(meta_tile.tiles, meta_tile.transformations):
+                midpoint = np.mean([transPt(transformation, pt) for pt in tile.quad], axis=0)
+                sensor_positions.append(midpoint)
+        else:
+            print(f"Unexpected type: {type(meta_tile)}")
+    return sensor_positions
+
+def plot_spectre_tiles_with_sensors(shapes, sensor_positions):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    for meta_tile_name, meta_tile in shapes.items():
+        if isinstance(meta_tile, MetaTile):
+            for tile, transformation in zip(meta_tile.tiles, meta_tile.transformations):
+                points = [transPt(transformation, pt) for pt in tile.quad]
+                polygon = Polygon(points, closed=True, fill=None, edgecolor='b')
+                ax.add_patch(polygon)
+
+    for sensor_pos in sensor_positions:
+        circle = Circle(sensor_pos, SENSOR_RADIUS, color='r', fill=False, linestyle='dotted')
+        ax.add_patch(circle)
+        ax.plot(sensor_pos[0], sensor_pos[1], 'ko')  # Sensor node as black dot
+
+    ax.set_xlim(-20, 20)
+    ax.set_ylim(-20, 20)
+    ax.set_aspect('equal', adjustable='box')
+    plt.grid(True)
+    plt.title("Spectre Tile with Sensors for 1-Coverage")
+    plt.savefig("spectre_with_sensors_1_coverage.png")
+    plt.show()
+
+# Generate spectre tiles
+shapes = generate_spectre_tiles()
+
+# Place sensors at midpoints
+sensor_positions = place_sensors_at_midpoints(shapes)
+
+# Plot the spectre tiles with sensor nodes
+plot_spectre_tiles_with_sensors(shapes, sensor_positions)
