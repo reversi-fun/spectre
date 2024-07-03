@@ -1,13 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
+from matplotlib.colors import ListedColormap
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 2
+N_ITERATIONS = 1
 EDGE_A = 10.0
 EDGE_B = 10.0
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required for 1-coverage
+GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def generate_spectre_tiles():
     tiles = buildSpectreBase()
@@ -23,17 +25,42 @@ def place_sensors_for_1_coverage(tiles):
         tile_points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         
         # Place sensors at strategic points (e.g., vertices, midpoints, centroids)
-        # This is a simplistic approach, actual placement should be more refined based on tile geometry
         for pt in tile_points:
             sensor_positions.append(pt)
         
-        
-        # Example: Place a sensor at the centroid of the tile
+        # Place a sensor at the centroid of the tile
         centroid = np.mean(tile_points, axis=0)
         sensor_positions.append(centroid)
 
     tiles["Delta"].forEachTile(add_sensor_points)
     return sensor_positions
+
+def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
+    x_coords = np.arange(-200, 200, grid_resolution)
+    y_coords = np.arange(-200, 200, grid_resolution)
+    coverage_map = np.zeros((len(x_coords), len(y_coords)))
+    
+    for sensor in sensor_positions:
+        for i, x in enumerate(x_coords):
+            for j, y in enumerate(y_coords):
+                if np.linalg.norm(sensor - np.array([x, y])) <= sensor_radius:
+                    coverage_map[i, j] += 1
+    
+    return x_coords, y_coords, coverage_map
+
+def plot_coverage_map(x_coords, y_coords, coverage_map):
+    max_coverage = int(np.max(coverage_map))
+    cmap = plt.cm.get_cmap('viridis', max_coverage + 1)
+    
+    fig, ax = plt.subplots(figsize=(15, 15))
+    c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=ListedColormap(cmap(np.linspace(0, 1, max_coverage + 1))))
+    fig.colorbar(c, ax=ax, ticks=np.arange(0, max_coverage + 1, 1))
+    ax.set_aspect('equal', adjustable='box')
+    plt.title("Coverage Map")
+    plt.xlabel("X Coordinate")
+    plt.ylabel("Y Coordinate")
+    plt.gca().set_facecolor('black')
+    plt.show()
 
 def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
     fig, ax = plt.subplots(figsize=(15, 15))  # Enlarge the output graph
@@ -67,9 +94,10 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
         ax.set_ylim(y_center - plot_height / 2, y_center + plot_height / 2)
 
     ax.set_aspect('equal', adjustable='box')
-    plt.grid(True)
+    plt.grid(False)
     plt.title("Spectre Tile with Sensors for 1-Coverage")
-    plt.savefig("spectre_with_sensors_1_coverage_optimized.png")
+    plt.gca().set_facecolor('black')
+    plt.savefig("spectre_with_sensors_1_coverage_optimized.png", facecolor='black')
     plt.show()
 
 # Generate spectre tiles
@@ -77,6 +105,10 @@ tiles = generate_spectre_tiles()
 
 # Place sensors for 1-coverage
 sensor_positions = place_sensors_for_1_coverage(tiles)
+
+# Calculate and plot the coverage map
+x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, SENSOR_RADIUS, GRID_RESOLUTION)
+plot_coverage_map(x_coords, y_coords, coverage_map)
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions)
