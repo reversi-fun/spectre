@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon, Circle
-from matplotlib.colors import ListedColormap
+from matplotlib.patches import Polygon as MplPolygon, Circle
+from shapely.geometry import Point, Polygon
+from shapely.ops import unary_union
+
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
@@ -48,39 +50,35 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     
     return x_coords, y_coords, coverage_map
 
-def plot_coverage_map(x_coords, y_coords, coverage_map):
+def plot_combined_map(tiles, sensor_positions, x_coords, y_coords, coverage_map):
     max_coverage = int(np.max(coverage_map))
-    cmap = plt.cm.get_cmap('viridis', max_coverage + 1)
+    colors = ['white', 'lightblue', 'blue', 'darkblue', 'purple', 'red', 'darkred', 'orange', 'yellow', 'green', 'darkgreen', 'black']
     
     fig, ax = plt.subplots(figsize=(15, 15))
-    c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=ListedColormap(cmap(np.linspace(0, 1, max_coverage + 1))))
-    fig.colorbar(c, ax=ax, ticks=np.arange(0, max_coverage + 1, 1))
-    ax.set_aspect('equal', adjustable='box')
-    plt.title("Coverage Map")
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    plt.gca().set_facecolor('black')
-    plt.show()
-
-def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
-    fig, ax = plt.subplots(figsize=(15, 15))  # Enlarge the output graph
+    
+    # Plot coverage map
+    coverage_map_transposed = coverage_map.T
+    for level in range(1, max_coverage + 1):
+        if level < len(colors):
+            level_mask = coverage_map_transposed == level
+            ax.contourf(x_coords, y_coords, level_mask, levels=[0.5, 1.5], colors=[colors[level]])
+    
+    # Plot spectre tiles and sensors
     all_points = []
 
     def draw_tile(transformation, label):
         points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         all_points.extend(points)
-        polygon = Polygon(points, closed=True, fill=None, edgecolor='b')
+        polygon = MplPolygon(points, closed=True, fill=None, edgecolor='b')
         ax.add_patch(polygon)
 
     tiles["Delta"].forEachTile(draw_tile)
 
-    # Place sensors at the strategic points
     for sensor_pos in sensor_positions:
         circle = Circle(sensor_pos, SENSOR_RADIUS, color='r', fill=False, linestyle='dotted')
         ax.add_patch(circle)
         ax.plot(sensor_pos[0], sensor_pos[1], 'ko', markersize=2)  # Smaller black dot for the sensor node
 
-    # Calculate limits to center the plot
     if all_points:
         all_points = np.array(all_points)
         x_min, x_max = all_points[:, 0].min(), all_points[:, 0].max()
@@ -95,9 +93,9 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
 
     ax.set_aspect('equal', adjustable='box')
     plt.grid(False)
-    plt.title("Spectre Tile with Sensors for 1-Coverage")
-    plt.gca().set_facecolor('black')
-    plt.savefig("spectre_with_sensors_1_coverage_optimized.png", facecolor='black')
+    plt.title("Spectre Tile with Sensors and Coverage Map")
+    plt.gca().set_facecolor('white')
+    plt.savefig("spectre_with_sensors_and_coverage_map.png", facecolor='white')
     plt.show()
 
 # Generate spectre tiles
@@ -106,9 +104,8 @@ tiles = generate_spectre_tiles()
 # Place sensors for 1-coverage
 sensor_positions = place_sensors_for_1_coverage(tiles)
 
-# Calculate and plot the coverage map
+# Calculate coverage
 x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, SENSOR_RADIUS, GRID_RESOLUTION)
-plot_coverage_map(x_coords, y_coords, coverage_map)
 
-# Plot the spectre tiles with sensor nodes
-plot_spectre_tiles_with_sensors(tiles, sensor_positions)
+# Plot combined map
+plot_combined_map(tiles, sensor_positions, x_coords, y_coords, coverage_map)

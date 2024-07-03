@@ -85,7 +85,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
         polygon = Polygon(points, closed=True, fill=None, edgecolor='b')
         ax.add_patch(polygon)
 
-    tiles["Delta"].forEachTile(draw_tile)
+    tiles["Gamma"].forEachTile(draw_tile)
 
     # Place sensors at the strategic points
     for sensor_pos in sensor_positions:

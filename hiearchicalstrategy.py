@@ -23,14 +23,15 @@ def place_sensors_adaptive(tiles, k_coverage):
         nonlocal sensor_positions
         tile_points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         
+        # Calculate cluster centroid
+        cluster_centroid = np.mean(tile_points, axis=0)
+        
         # Place sensors at strategic points within the cluster
         if level == 1:
             for pt in tile_points:
                 sensor_positions.append(pt)
-            centroid = np.mean(tile_points, axis=0)
-            sensor_positions.append(centroid)
+            sensor_positions.append(cluster_centroid)
         else:
-            cluster_centroid = np.mean(tile_points, axis=0)
             sensor_positions.append(cluster_centroid)
             for pt in tile_points:
                 sensor_positions.append(pt)
@@ -66,7 +67,8 @@ def calculate_sensor_area_usage(coverage_map, sensor_radius):
     return percentage_usage
 
 def plot_coverage_map(x_coords, y_coords, coverage_map, k_coverage):
-    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
+    colors = ['white', 'lightblue', 'blue', 'darkblue', 'purple', 'red', 'darkred', 'orange', 'yellow', 'green', 'darkgreen', 'black']
+    cmap = ListedColormap(colors[:k_coverage + 2])
     fig, ax = plt.subplots(figsize=(15, 15))
     c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=cmap, vmin=0, vmax=k_coverage+1)
     fig.colorbar(c, ax=ax, ticks=np.arange(0, k_coverage + 2, 1))
