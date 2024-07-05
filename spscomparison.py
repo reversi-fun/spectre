@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle, RegularPolygon
+from matplotlib.colors import ListedColormap
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
@@ -8,6 +9,7 @@ N_ITERATIONS = 1
 EDGE_A = 10.0
 EDGE_B = 10.0
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required for 1-coverage
+GRID_RESOLUTION = 1
 
 def generate_spectre_tiles():
     tiles = buildSpectreBase()
@@ -65,9 +67,27 @@ def compute_coverage_map(sensor_positions, sensor_radius, grid_resolution=1):
     
     return x_coords, y_coords, coverage_map
 
+def calculate_sensor_density(sensor_positions, area):
+    return len(sensor_positions) / area
+
+def calculate_total_energy_consumption(sensor_positions):
+    # Assuming each sensor has a fixed energy consumption rate
+    ENERGY_CONSUMPTION_RATE = 1  # Example value
+    return len(sensor_positions) * ENERGY_CONSUMPTION_RATE
+
+def calculate_rate_of_overlap(coverage_map):
+    total_area = np.prod(coverage_map.shape)
+    covered_area = np.sum(coverage_map > 0)
+    overlap_area = total_area - covered_area
+    return overlap_area / total_area
+
+def calculate_coverage_quality(rate_of_overlap):
+    return 1 / rate_of_overlap if rate_of_overlap != 0 else float('inf')
+
 def plot_coverage_map(x_coords, y_coords, coverage_map):
     fig, ax = plt.subplots(figsize=(15, 15))
-    c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap='viridis')
+    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
+    c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=cmap)
     fig.colorbar(c, ax=ax)
     ax.set_aspect('equal', adjustable='box')
     plt.title("Coverage Map")
@@ -111,18 +131,34 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
     plt.title("Spectre Tile with Sensors for 1-Coverage")
     
     
-    plt.savefig("spectre_with_sensors_1_coverage_optimized_with_hex_grid.png")
+    plt.savefig("spectre_with_sensors_1_coverage_optimized_with_hex_grid3.png")
     plt.show()
 
-# Generate spectre tiles
-tiles = generate_spectre_tiles()
+def main():
+    # Generate spectre tiles
+    tiles = generate_spectre_tiles()
 
-# Place sensors for 1-coverage
-sensor_positions = place_sensors_for_1_coverage(tiles)
+    # Place sensors for 1-coverage
+    sensor_positions = place_sensors_for_1_coverage(tiles)
 
-# Plot the spectre tiles with sensor nodes
-plot_spectre_tiles_with_sensors(tiles, sensor_positions)
+    # Compute and plot the coverage map
+    x_coords, y_coords, coverage_map = compute_coverage_map(sensor_positions, SENSOR_RADIUS)
+    plot_coverage_map(x_coords, y_coords, coverage_map)
 
-# Compute and plot the coverage map
-x_coords, y_coords, coverage_map = compute_coverage_map(sensor_positions, SENSOR_RADIUS)
-plot_coverage_map(x_coords, y_coords, coverage_map)
+    # Calculate metrics
+    area = (x_coords.max() - x_coords.min()) * (y_coords.max() - y_coords.min())
+    sensor_density = calculate_sensor_density(sensor_positions, area)
+    total_energy_consumption = calculate_total_energy_consumption(sensor_positions)
+    rate_of_overlap = calculate_rate_of_overlap(coverage_map)
+    coverage_quality = calculate_coverage_quality(rate_of_overlap)
+
+    print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
+    print(f"Total energy consumption: {total_energy_consumption:.2f} units")
+    print(f"Rate of overlap: {rate_of_overlap:.6f}")
+    print(f"Coverage quality: {coverage_quality:.6f}")
+
+    # Plot the spectre tiles with sensor nodes
+    plot_spectre_tiles_with_sensors(tiles, sensor_positions)
+
+if __name__ == "__main__":
+    main()
