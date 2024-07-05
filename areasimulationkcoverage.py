@@ -7,8 +7,9 @@ from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTR
 # Parameters
 N_ITERATIONS = 1
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required
-K_COVERAGE = 1  # Desired level of k-coverage
+K_COVERAGE = 2  # Desired level of k-coverage
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
+AREA_SIZE = 1000  # 1000x1000m area of interest
 
 def generate_spectre_tiles(n_iterations):
     tiles = buildSpectreBase()
@@ -48,8 +49,8 @@ def place_sensors_adaptive(tiles, k_coverage):
     return sensor_positions
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(-200, 200, grid_resolution)
-    y_coords = np.arange(-200, 200, grid_resolution)
+    x_coords = np.arange(0, AREA_SIZE, grid_resolution)
+    y_coords = np.arange(0, AREA_SIZE, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:
@@ -60,10 +61,10 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     
     return x_coords, y_coords, coverage_map
 
-def calculate_sensor_area_usage(coverage_map, sensor_radius):
-    sensor_area = np.pi * sensor_radius**2
-    used_area = np.sum(coverage_map > 0) * GRID_RESOLUTION**2
-    percentage_usage = used_area / (coverage_map.size * sensor_area)
+def calculate_sensor_area_usage(coverage_map, grid_resolution):
+    total_covered_area = np.sum(coverage_map > 0) * grid_resolution**2
+    total_grid_area = coverage_map.size * grid_resolution**2
+    percentage_usage = (total_covered_area / total_grid_area) * 100
     return percentage_usage
 
 def plot_coverage_map(x_coords, y_coords, coverage_map, k_coverage):
@@ -129,5 +130,5 @@ plot_coverage_map(x_coords, y_coords, coverage_map, K_COVERAGE)
 plot_spectre_tiles_with_sensors(tiles, sensor_positions)
 
 # Calculate sensor area usage
-sensor_area_usage = calculate_sensor_area_usage(coverage_map, SENSOR_RADIUS)
+sensor_area_usage = calculate_sensor_area_usage(coverage_map, GRID_RESOLUTION)
 print(f"Sensor area usage: {sensor_area_usage:.2%}")
