@@ -4,31 +4,50 @@ from matplotlib.patches import Polygon, Circle, RegularPolygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 1
+N_ITERATIONS = 2  # Adjust for different levels of supertiles
 EDGE_A = 10.0
 EDGE_B = 10.0
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required for 1-coverage
 
-def generate_spectre_tiles():
+# Desired coverage level
+K_COVERAGE = 1
+
+def generate_spectre_tiles(n_iterations):
     tiles = buildSpectreBase()
-    for _ in range(N_ITERATIONS):
+    for _ in range(n_iterations):
         tiles = buildSupertiles(tiles)
     return tiles
 
-def place_sensors_for_1_coverage(tiles):
+def place_sensors_adaptively(tiles, k_coverage):
     sensor_positions = []
     
     def add_sensor_points(transformation, label):
         nonlocal sensor_positions
         tile_points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         
-        # Place sensors at strategic points (e.g., vertices, midpoints, centroids)
-        for pt in tile_points:
-            sensor_positions.append(pt)
-        
-        # Place a sensor at the centroid of the tile
-        centroid = np.mean(tile_points, axis=0)
-        sensor_positions.append(centroid)
+        if label in ['H', 'T', 'P', 'F']:
+            # Customize placement based on cluster type and desired k-coverage
+            if k_coverage == 1:
+                # For 1-coverage, place sensors at strategic points within the cluster
+                centroid = np.mean(tile_points, axis=0)
+                sensor_positions.append(centroid)
+            elif k_coverage == 2:
+                # For 2-coverage, place sensors at vertices and midpoints
+                for pt in tile_points:
+                    sensor_positions.append(pt)
+                for i in range(len(tile_points)):
+                    mid_point = (tile_points[i] + tile_points[(i + 1) % len(tile_points)]) / 2
+                    sensor_positions.append(mid_point)
+            elif k_coverage == 3:
+                # For 3-coverage, place sensors at vertices, midpoints, and centroid
+                for pt in tile_points:
+                    sensor_positions.append(pt)
+                for i in range(len(tile_points)):
+                    mid_point = (tile_points[i] + tile_points[(i + 1) % len(tile_points)]) / 2
+                    sensor_positions.append(mid_point)
+                centroid = np.mean(tile_points, axis=0)
+                sensor_positions.append(centroid)
+            # Additional strategies can be added for higher k-coverage levels
 
     tiles["Delta"].forEachTile(add_sensor_points)
     return sensor_positions
@@ -54,14 +73,10 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
         polygon = Polygon(points, closed=True, fill=None, edgecolor='b', zorder=1)
         ax.add_patch(polygon)
 
-<<<<<<< Updated upstream
-    tiles["Gamma"].forEachTile(draw_tile)
-=======
     # Draw hexagonal grid in the background
     draw_hex_grid(ax, EDGE_A, grid_size=15)
 
     tiles["Delta"].forEachTile(draw_tile)
->>>>>>> Stashed changes
 
     # Place sensors at the strategic points
     for sensor_pos in sensor_positions:
@@ -85,19 +100,14 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions):
     ax.set_aspect('equal', adjustable='box')
     plt.grid(False)
     plt.title("Spectre Tile with Sensors for 1-Coverage")
-    
-    plt.savefig("spectre_with_sensors_1_coverage_optimized_with_hex_grid.png")
+    plt.savefig("spectre_with_sensors_adaptive_coverage.png")
     plt.show()
 
-# Generate spectre tiles
-tiles = generate_spectre_tiles()
+# Generate spectre tiles with specified number of iterations
+tiles = generate_spectre_tiles(N_ITERATIONS)
 
-# Place sensors for 1-coverage
-sensor_positions = place_sensors_for_1_coverage(tiles)
+# Place sensors adaptively for the desired k-coverage
+sensor_positions = place_sensors_adaptively(tiles, K_COVERAGE)
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions)
-
-# Compute and plot the coverage map
-x_coords, y_coords, coverage_map = compute_coverage_map(sensor_positions, SENSOR_RADIUS)
-plot_coverage_map(x_coords, y_coords, coverage_map)
