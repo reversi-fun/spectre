@@ -2,6 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
 from matplotlib.colors import ListedColormap
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon as ShapelyPolygon
+from shapely.ops import unary_union
+
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
@@ -61,10 +65,9 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     return x_coords, y_coords, coverage_map
 
 def calculate_sensor_area_usage(coverage_map, sensor_radius):
-    sensor_area = np.pi * sensor_radius**2
-    used_area = np.sum(coverage_map > 0) * GRID_RESOLUTION**2
-    percentage_usage = used_area / (coverage_map.size * sensor_area)
-    return percentage_usage
+    total_sensor_area = np.pi * sensor_radius**2
+    total_covered_area = np.sum(coverage_map > 0) * GRID_RESOLUTION**2
+    return total_covered_area / (coverage_map.size * total_sensor_area)
 
 def plot_coverage_map(x_coords, y_coords, coverage_map, k_coverage):
     colors = ['white', 'lightblue', 'blue', 'darkblue', 'purple', 'red', 'darkred', 'orange', 'yellow', 'green', 'darkgreen', 'black']
