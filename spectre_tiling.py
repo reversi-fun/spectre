@@ -9,6 +9,7 @@ from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTR
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 FIELD_SIZE = 500  # Size of the field to cover (500x500 meters)
 ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
+MAX_ITERATIONS = 10  # Maximum number of iterations to prevent infinite loops
 
 def calculate_sensor_radius(tile_points):
     """Calculate the sensor radius to inscribe the spectre monotile within a circle."""
@@ -19,8 +20,12 @@ def generate_spectre_tiles():
     tiles = buildSpectreBase()
     iterations = 0
     while not is_field_covered(tiles, FIELD_SIZE):
+        if iterations >= MAX_ITERATIONS:
+            print("Maximum iterations reached. Stopping to prevent infinite loop.")
+            break
         tiles = buildSupertiles(tiles)
         iterations += 1
+        print(f"Iteration {iterations} completed.")
     return tiles, iterations
 
 def is_field_covered(tiles, field_size):
