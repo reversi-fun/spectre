@@ -56,24 +56,25 @@ def plot_coverage_map(x_coords, y_coords, coverage_map):
     plt.ylabel("Y Coordinate")
     plt.show()
 
-def plot_hex_grid(sensor_positions, sensor_radius, field_size):
+def plot_hex_grid_with_sensors(sensor_positions, sensor_radius):
     fig, ax = plt.subplots(figsize=(15, 15))
     for sensor_pos in sensor_positions:
-        hexagon = RegularPolygon(sensor_pos, numVertices=6, radius=sensor_radius, orientation=np.radians(30), edgecolor='b', fill=None)
+        hexagon = RegularPolygon(sensor_pos, numVertices=6, radius=sensor_radius, 
+                                 orientation=np.radians(30), edgecolor='lightgrey', fill=None)
         ax.add_patch(hexagon)
         circle = Circle(sensor_pos, sensor_radius, color='r', fill=False, linestyle='dotted')
         ax.add_patch(circle)
         ax.plot(sensor_pos[0], sensor_pos[1], 'ko', markersize=2)
-    
-    ax.set_xlim(0, field_size)
-    ax.set_ylim(0, field_size)
+
+    ax.set_xlim(0, FIELD_SIZE)
+    ax.set_ylim(0, FIELD_SIZE)
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
-    plt.title("Hexagonal Tiling with Sensors Inscribed for Coverage")
-    plt.savefig("hexagonal_tiling_coverage.png")
+    plt.title("Hexagonal Tiling with Sensors for Coverage")
+    plt.savefig("hexagonal_tiling_with_sensors_coverage.png")
     plt.show()
 
-# Generate hexagonal grid
+# Calculate hex grid positions
 sensor_positions = calculate_hex_grid(SENSOR_RADIUS, FIELD_SIZE)
 
 # Calculate and plot the coverage map
@@ -90,5 +91,5 @@ print(f"Rate of overlap: {rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
 
-# Plot the hexagonal tiling with sensor nodes
-plot_hex_grid(sensor_positions, SENSOR_RADIUS, FIELD_SIZE)
+# Plot the hexagonal grid with sensor nodes
+plot_hex_grid_with_sensors(sensor_positions, SENSOR_RADIUS)

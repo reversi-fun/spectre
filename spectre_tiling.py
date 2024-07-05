@@ -6,7 +6,6 @@ from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 1
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 FIELD_SIZE = 500  # Size of the field to cover (500x500 meters)
 ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
@@ -16,11 +15,21 @@ def calculate_sensor_radius(tile_points):
     longest_distance = max(np.linalg.norm(pt - np.mean(tile_points, axis=0)) for pt in tile_points)
     return longest_distance
 
-def generate_spectre_tiles(n_iterations):
+def generate_spectre_tiles():
     tiles = buildSpectreBase()
-    for _ in range(n_iterations):
+    iterations = 0
+    while not is_field_covered(tiles, FIELD_SIZE):
         tiles = buildSupertiles(tiles)
-    return tiles
+        iterations += 1
+    return tiles, iterations
+
+def is_field_covered(tiles, field_size):
+    all_points = []
+    tiles["Delta"].forEachTile(lambda t, l: all_points.extend([transPt(t, pt) for pt in SPECTRE_POINTS]))
+    all_points = np.array(all_points)
+    x_min, x_max = all_points[:, 0].min(), all_points[:, 0].max()
+    y_min, y_max = all_points[:, 1].min(), all_points[:, 1].max()
+    return x_max - x_min >= field_size and y_max - y_min >= field_size
 
 def place_sensors_inscribed(tiles):
     sensor_positions = []
@@ -108,7 +117,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     plt.show()
 
 # Generate spectre tiles
-tiles = generate_spectre_tiles(N_ITERATIONS)
+tiles, iterations = generate_spectre_tiles()
 
 # Place sensors inscribed within each tile
 sensor_positions = place_sensors_inscribed(tiles)
@@ -130,6 +139,7 @@ print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
 print(f"Rate of overlap: {rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
+print(f"Number of iterations: {iterations}")
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions, SENSOR_RADIUS)
