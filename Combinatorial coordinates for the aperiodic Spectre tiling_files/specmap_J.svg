@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="180.000000" height="210.000000">
+<style type="text/css">
+path { fill: none; stroke: black; stroke-width: 1.500000; stroke-linejoin: round; stroke-linecap: round; }
+text { fill: black; font-family: Sans; text-anchor: middle; text-align: center; }
+.G { fill: rgb(255, 128, 128); }
+.G1 { fill: rgb(255, 64, 64); }
+.F { fill: rgb(255, 192, 128); }
+.Y { fill: rgb(255, 255, 128); }
+.S { fill: rgb(128, 255, 128); }
+.D { fill: rgb(128, 255, 255); }
+.P { fill: rgb(128, 128, 255); }
+.X { fill: rgb(192, 128, 255); }
+.J { fill: rgb(255, 128, 255); }
+.L { fill: rgb(128, 128, 128); }
+.optional { stroke-dasharray: 5; }
+.arrow { fill: rgba(0, 0, 0, 0.2); stroke: none; }
+</style>
+<path class="J" d="M 172.500000 180.000000L 131.519238 190.980762L 101.519238 160.980762L 71.519238 190.980762L 30.538476 180.000000L 41.519238 139.019238L 11.519238 109.019238L 41.519238 79.019238L 30.538476 38.038476L 71.519238 27.057714L 101.519238 57.057714L 131.519238 87.057714L 120.538476 128.038476L 161.519238 139.019238 z"/>
+<text style="font-size: 18.000000px" x="76.274047" y="122.083666">0</text>
+<circle class="startpoint" cx="71.519238" cy="27.057714" r="9.000000"/>
+<circle class="edgesep" cx="131.519238" cy="87.057714" r="4.500000"/>
+<circle class="edgesep" cx="172.500000" cy="180.000000" r="4.500000"/>
+<circle class="edgesep" cx="131.519238" cy="190.980762" r="4.500000"/>
+<circle class="edgesep" cx="30.538476" cy="180.000000" r="4.500000"/>
+<circle class="edgesep" cx="11.519238" cy="109.019238" r="4.500000"/>
+<text style="font-size: 9.000000px" x="20.219238" y="133.469238">0.1</text>
+<text style="font-size: 12.000000px" x="31.319238" y="103.019238">6</text>
+<text style="font-size: 9.000000px" x="27.422897" y="63.984817">1.0</text>
+<text style="font-size: 12.000000px" x="52.785779" y="43.305017">8</text>
+<text style="font-size: 12.000000px" x="31.319238" y="123.419238">5</text>
+<text style="font-size: 9.000000px" x="27.422897" y="160.353659">1.1</text>
+<text style="font-size: 9.000000px" x="20.219238" y="90.869238">2.0</text>
+<text style="font-size: 12.000000px" x="42.585779" y="60.971935">7</text>
+<text style="font-size: 9.000000px" x="48.722897" y="27.092135">0.0</text>
+<text style="font-size: 12.000000px" x="81.719238" y="51.057714">9</text>
+<text style="font-size: 12.000000px" x="42.585779" y="165.466541">4</text>
+<text style="font-size: 9.000000px" x="48.722897" y="197.246341">0.2</text>
+<text style="font-size: 9.000000px" x="92.819238" y="38.907714">1.5</text>
+<text style="font-size: 12.000000px" x="108.119238" y="84.657714">10</text>
+<text style="font-size: 12.000000px" x="52.785779" y="183.133459">3</text>
+<text style="font-size: 9.000000px" x="92.819238" y="185.430762">1.2</text>
+<text style="font-size: 9.000000px" x="122.819238" y="68.907714">0.5</text>
+<text style="font-size: 12.000000px" x="114.554243" y="108.673481">11</text>
+<text style="font-size: 9.000000px" x="134.634817" y="113.004055">2.4</text>
+<text style="font-size: 12.000000px" x="137.954243" y="149.203470">12</text>
+<text style="font-size: 12.000000px" x="81.719238" y="175.380762">2</text>
+<text style="font-size: 9.000000px" x="110.219238" y="185.430762">2.2</text>
+<text style="font-size: 12.000000px" x="121.319238" y="175.380762">1</text>
+<text style="font-size: 9.000000px" x="154.315579" y="197.246341">0.3</text>
+<text style="font-size: 9.000000px" x="143.334817" y="128.072897">1.4</text>
+<text style="font-size: 12.000000px" x="155.535006" y="166.784232">13</text>
+<text style="font-size: 12.000000px" x="150.252697" y="183.133459">0</text>
+<text style="font-size: 9.000000px" x="175.615579" y="160.353659">0.4</text>
+</svg>

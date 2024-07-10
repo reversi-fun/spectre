@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="322.500000" height="210.000000">
+<style type="text/css">
+path { fill: none; stroke: black; stroke-width: 1.500000; stroke-linejoin: round; stroke-linecap: round; }
+text { fill: black; font-family: Sans; text-anchor: middle; text-align: center; }
+.G { fill: rgb(255, 128, 128); }
+.G1 { fill: rgb(255, 64, 64); }
+.F { fill: rgb(255, 192, 128); }
+.Y { fill: rgb(255, 255, 128); }
+.S { fill: rgb(128, 255, 128); }
+.D { fill: rgb(128, 255, 255); }
+.P { fill: rgb(128, 128, 255); }
+.X { fill: rgb(192, 128, 255); }
+.J { fill: rgb(255, 128, 255); }
+.L { fill: rgb(128, 128, 128); }
+.optional { stroke-dasharray: 5; }
+.arrow { fill: rgba(0, 0, 0, 0.2); stroke: none; }
+</style>
+<path class="" d="M 172.500000 180.000000L 131.519238 190.980762L 101.519238 160.980762L 71.519238 190.980762L 30.538476 180.000000L 41.519238 139.019238L 11.519238 109.019238L 41.519238 79.019238L 30.538476 38.038476L 71.519238 27.057714L 101.519238 57.057714L 131.519238 87.057714L 120.538476 128.038476L 161.519238 139.019238 z"/>
+<text style="font-size: 18.000000px" x="76.274047" y="122.083666">0</text>
+<path class="optional" d="M 295.442286 109.019238L 265.442286 139.019238L 224.461524 128.038476L 213.480762 169.019238L 172.500000 180.000000L 161.519238 139.019238L 120.538476 128.038476L 131.519238 87.057714L 101.519238 57.057714L 131.519238 27.057714L 172.500000 38.038476L 213.480762 49.019238L 224.461524 90.000000L 265.442286 79.019238 z"/>
+<text style="font-size: 18.000000px" x="180.000000" y="107.819238">1</text>
+</svg>
