@@ -7,9 +7,8 @@ from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTR
 # Parameters
 N_ITERATIONS = 1
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required
-K_COVERAGE = 1 # Desired level of k-coverage
+K_COVERAGE = 1  # Desired level of k-coverage
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
-AREA_SIZE = 100  # 1000x1000m area of interest
 
 def generate_spectre_tiles(n_iterations):
     tiles = buildSpectreBase()
@@ -24,20 +23,13 @@ def place_sensors_adaptive(tiles, k_coverage):
         nonlocal sensor_positions
         tile_points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         
-        # Calculate cluster centroid
-        cluster_centroid = np.mean(tile_points, axis=0)
-        
         # Place sensors at strategic points within the cluster
-        if level == 1:
-            for pt in tile_points:
-                sensor_positions.append(pt)
-            sensor_positions.append(cluster_centroid)
-        else:
-            sensor_positions.append(cluster_centroid)
-            for pt in tile_points:
-                sensor_positions.append(pt)
-                midpoint = (pt + cluster_centroid) / 2
-                sensor_positions.append(midpoint)
+        cluster_centroid = np.mean(tile_points, axis=0)
+        sensor_positions.append(cluster_centroid)
+        for pt in tile_points:
+            sensor_positions.append(pt)
+            midpoint = (pt + cluster_centroid) / 2
+            sensor_positions.append(midpoint)
         
         if k_coverage > 1:
             extra_sensors = [((pt + cluster_centroid) / 2) for pt in tile_points]
@@ -49,8 +41,8 @@ def place_sensors_adaptive(tiles, k_coverage):
     return sensor_positions
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(0, AREA_SIZE, grid_resolution)
-    y_coords = np.arange(0, AREA_SIZE, grid_resolution)
+    x_coords = np.arange(-200, 200, grid_resolution)
+    y_coords = np.arange(-200, 200, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:
@@ -61,15 +53,28 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     
     return x_coords, y_coords, coverage_map
 
-def calculate_sensor_area_usage(coverage_map, grid_resolution):
-    total_covered_area = np.sum(coverage_map > 0) * grid_resolution**2
-    total_grid_area = coverage_map.size * grid_resolution**2
-    percentage_usage = (total_covered_area / total_grid_area) * 100
-    return percentage_usage
+def calculate_metrics(coverage_map, sensor_positions, sensor_radius, grid_resolution):
+    total_area = coverage_map.size * grid_resolution**2
+    sensor_area = np.pi * sensor_radius**2
+    covered_area = np.sum(coverage_map > 0) * grid_resolution**2
+    
+    # Sensor density
+    sensor_density = len(sensor_positions) / total_area
+    
+    # Rate of overlap
+    overlap_area = np.sum(coverage_map > 1) * grid_resolution**2
+    rate_of_overlap = overlap_area / total_area
+    
+    # Coverage quality
+    coverage_quality = 1 / rate_of_overlap if rate_of_overlap != 0 else float('inf')
+    
+    # Sensor area usage
+    percentage_usage = (covered_area / total_area) * 100
+    
+    return sensor_density, rate_of_overlap, coverage_quality, percentage_usage
 
 def plot_coverage_map(x_coords, y_coords, coverage_map, k_coverage):
-    colors = ['white', 'lightblue', 'blue', 'darkblue', 'purple', 'red', 'darkred', 'orange', 'yellow', 'green', 'darkgreen', 'black']
-    cmap = ListedColormap(colors[:k_coverage + 2])
+    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
     fig, ax = plt.subplots(figsize=(15, 15))
     c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=cmap, vmin=0, vmax=k_coverage+1)
     fig.colorbar(c, ax=ax, ticks=np.arange(0, k_coverage + 2, 1))
@@ -129,6 +134,11 @@ plot_coverage_map(x_coords, y_coords, coverage_map, K_COVERAGE)
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions)
 
-# Calculate sensor area usage
-sensor_area_usage = calculate_sensor_area_usage(coverage_map, GRID_RESOLUTION)
-print(f"Sensor area usage: {sensor_area_usage:.2%}")
+# Calculate metrics
+sensor_density, rate_of_overlap, coverage_quality, sensor_area_usage = calculate_metrics(coverage_map, sensor_positions, SENSOR_RADIUS, GRID_RESOLUTION)
+
+# Print metrics
+print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
+print(f"Rate of overlap: {rate_of_overlap:.6f}")
+print(f"Coverage quality: {coverage_quality:.6f}")
+print(f"Sensor area usage: {sensor_area_usage:.2f}%")
