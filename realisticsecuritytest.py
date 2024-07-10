@@ -4,7 +4,7 @@ from shapely.geometry import Point, Polygon
 from securitymetricsaperiodic_hexagonal import generate_spectre_tiles, generate_hexagonal_network, transPt, SPECTRE_POINTS
 
 # Parameters
-NUM_SENSORS = 559
+NUM_SENSORS = 847
 SENSOR_RADIUS = 10
 INTRUDER_INITIAL_POSITION = (100, -100)
 HOP_DISTANCE = SENSOR_RADIUS
@@ -84,12 +84,12 @@ def smart_random_walk_regular(network, intruder_position, visited_nodes):
     return intruder_position
 
 def smart_random_walk_irregular(network, intruder_position, full_network):
-    angle_rad = np.random.uniform(0, 2 * np.pi)
-    new_position = (intruder_position[0] + HOP_DISTANCE * np.cos(angle_rad),
-                    intruder_position[1] + HOP_DISTANCE * np.sin(angle_rad))
-    if not is_within_network(new_position, full_network):
-        new_position = network[np.random.randint(len(network))]
-    return new_position
+    while True:
+        angle_rad = np.random.uniform(0, 2 * np.pi)
+        new_position = (intruder_position[0] + HOP_DISTANCE * np.cos(angle_rad),
+                        intruder_position[1] + HOP_DISTANCE * np.sin(angle_rad))
+        if is_within_network(new_position, full_network):
+            return new_position
 
 def is_within_network(position, network):
     min_x, min_y = np.min(network, axis=0)
