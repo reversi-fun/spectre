@@ -7,8 +7,10 @@ from spectre import buildSpectreBase, transPt, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
-MAX_ITERATIONS = 3  # Maximum number of iterations to prevent infinite loops
+MAX_ITERATIONS = 3  # Maximum number of iterations to generate spectre tiles
 K_COVERAGE = 2  # Desired level of k-coverage
+MAX_ADDITIONAL_SENSORS = 5000  # Maximum number of additional sensors to ensure K-coverage
+MAX_K_COVERAGE_ITERATIONS = 3  # Maximum iterations for ensuring K-coverage
 
 def calculate_sensor_radius(tile_points):
     """Calculate the sensor radius to inscribe the spectre monotile within a circle."""
@@ -45,8 +47,11 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     return x_coords, y_coords, coverage_map
 
 def ensure_k_coverage(sensor_positions, k, sensor_radius, grid_resolution):
-    x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, grid_resolution)
-    while np.min(coverage_map) < k:
+    iteration = 0
+    while iteration < MAX_K_COVERAGE_ITERATIONS:
+        x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, grid_resolution)
+        if np.min(coverage_map) >= k:
+            break
         additional_positions = []
         for sensor in sensor_positions:
             for _ in range(k):
@@ -54,7 +59,11 @@ def ensure_k_coverage(sensor_positions, k, sensor_radius, grid_resolution):
                 new_pos = sensor + shift
                 additional_positions.append(new_pos)
         sensor_positions = np.concatenate((sensor_positions, additional_positions), axis=0)
-        x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, grid_resolution)
+        iteration += 1
+        print(f"Iteration {iteration}: Minimum coverage = {np.min(coverage_map)}, Total sensors = {len(sensor_positions)}")
+        if len(sensor_positions) > MAX_ADDITIONAL_SENSORS:
+            print("Maximum additional sensors limit reached.")
+            break
     return x_coords, y_coords, coverage_map, sensor_positions
 
 def plot_coverage_map(x_coords, y_coords, coverage_map):
