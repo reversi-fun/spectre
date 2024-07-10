@@ -19,14 +19,16 @@ def calculate_sensor_radius(tile_points):
 def generate_spectre_tiles():
     tiles = buildSpectreBase()
     iterations = 0
+    sensor_counts = []
     while not is_field_covered(tiles, FIELD_SIZE):
         if iterations >= MAX_ITERATIONS:
             print("Maximum iterations reached. Stopping to prevent infinite loop.")
             break
         tiles = buildSupertiles(tiles)
         iterations += 1
-        print(f"Iteration {iterations} completed.")
-    return tiles, iterations
+        sensor_counts.append(count_sensors(tiles))
+        print(f"Iteration {iterations} completed. Number of sensors: {sensor_counts[-1]}")
+    return tiles, iterations, sensor_counts
 
 def is_field_covered(tiles, field_size):
     all_points = []
@@ -47,6 +49,10 @@ def place_sensors_inscribed(tiles):
     
     tiles["Delta"].forEachTile(add_sensor_points)
     return sensor_positions
+
+def count_sensors(tiles):
+    sensor_positions = place_sensors_inscribed(tiles)
+    return len(sensor_positions)
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution, field_size):
     x_coords = np.arange(0, field_size, grid_resolution)
@@ -122,7 +128,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     plt.show()
 
 # Generate spectre tiles
-tiles, iterations = generate_spectre_tiles()
+tiles, iterations, sensor_counts = generate_spectre_tiles()
 
 # Place sensors inscribed within each tile
 sensor_positions = place_sensors_inscribed(tiles)
@@ -145,6 +151,7 @@ print(f"Rate of overlap: {rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
 print(f"Number of iterations: {iterations}")
+print(f"Sensor counts per iteration: {sensor_counts}")
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions, SENSOR_RADIUS)

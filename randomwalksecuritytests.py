@@ -28,35 +28,45 @@ def place_sensors_inscribed(tiles):
 
 def generate_triangular_network(num_sensors, sensor_radius):
     sensor_positions = []
-    side_length = sensor_radius * np.sqrt(3)
-    count = 0
-    x = 0
-    while count < num_sensors:
-        for y in range(0, int(side_length * (num_sensors ** 0.5)), int(sensor_radius * 1.5)):
-            offset = (x % (2 * side_length)) / 2
-            sensor_positions.append((x + offset, y))
-            count += 1
-            if count >= num_sensors:
-                break
-        x += int(side_length)
+    row = 0
+    col = 0
+    y_offset = np.sqrt(3) * sensor_radius
+    x_offset = 1.5 * sensor_radius
+
+    while len(sensor_positions) < num_sensors:
+        x = col * x_offset
+        y = row * y_offset
+        sensor_positions.append((x, y))
+
+        col += 1
+        if col * x_offset > np.sqrt(num_sensors) * x_offset:
+            row += 1
+            if row % 2 == 0:
+                col = 0
+            else:
+                col = 0.5
+
     return sensor_positions
 
 def generate_square_network(num_sensors, sensor_radius):
     sensor_positions = []
-    count = 0
-    for x in range(0, int((num_sensors ** 0.5) * sensor_radius * 2), sensor_radius * 2):
-        for y in range(0, int((num_sensors ** 0.5) * sensor_radius * 2), sensor_radius * 2):
-            sensor_positions.append((x, y))
-            count += 1
-            if count >= num_sensors:
+    side_length = int(np.sqrt(num_sensors))
+    x_offset = sensor_radius
+    y_offset = sensor_radius
+
+    for i in range(side_length):
+        for j in range(side_length):
+            sensor_positions.append((i * x_offset, j * y_offset))
+            if len(sensor_positions) >= num_sensors:
                 break
-        if count >= num_sensors:
+        if len(sensor_positions) >= num_sensors:
             break
+
     return sensor_positions
 
 def simulate_intruder_attack(network, intruder_position, base_station_position, regular=True):
     path = [intruder_position]
-    max_steps = 1000  # Set a reasonable limit to prevent infinite loops
+    max_steps = 5000  # Set a reasonable limit to prevent infinite loops
     steps = 0
     visited_nodes = set()
 
