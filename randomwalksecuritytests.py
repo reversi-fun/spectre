@@ -4,7 +4,7 @@ from shapely.geometry import Point, Polygon
 from securitymetricsaperiodic_hexagonal import generate_spectre_tiles, generate_hexagonal_network, transPt, SPECTRE_POINTS
 
 # Parameters
-NUM_SENSORS = 559  # Number of sensors for fair comparison
+NUM_SENSORS = 4401  # Number of sensors for fair comparison
 SENSOR_RADIUS = 10  # Ensuring both networks use the same sensor radius
 INTRUDER_INITIAL_POSITION = (0, -200)
 HOP_DISTANCE = SENSOR_RADIUS  # The distance of one hop, which is the same as the sensor radius
@@ -66,7 +66,7 @@ def generate_square_network(num_sensors, sensor_radius):
 
 def simulate_intruder_attack(network, intruder_position, base_station_position, regular=True):
     path = [intruder_position]
-    max_steps = 5000  # Set a reasonable limit to prevent infinite loops
+    max_steps = 50000  # Set a reasonable limit to prevent infinite loops
     steps = 0
     visited_nodes = set()
 
