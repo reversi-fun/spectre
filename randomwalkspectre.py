@@ -4,7 +4,7 @@ from shapely.geometry import Point, Polygon
 from securitymetricsaperiodic_hexagonal import generate_aperiodic_network, generate_hexagonal_network
 
 # Parameters
-FIELD_SIZE = 500
+FIELD_SIZE = 50
 SENSOR_RADIUS = 10  # Ensuring both networks use the same sensor radius
 BASE_STATION_POSITION = (FIELD_SIZE / 2, FIELD_SIZE / 2)
 INTRUDER_INITIAL_POSITION = (0, 0)
