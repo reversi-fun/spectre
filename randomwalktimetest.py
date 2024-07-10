@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point
 from securitymetricsaperiodic_hexagonal import generate_spectre_tiles, generate_hexagonal_network, transPt, SPECTRE_POINTS
 
 # Parameters
 NUM_SENSORS = 559  # Number of sensors for fair comparison
 SENSOR_RADIUS = 10  # Ensuring both networks use the same sensor radius
 INTRUDER_INITIAL_POSITION = (100, -100)
-HOP_DISTANCE = SENSOR_RADIUS  # The distance of one hop, which is the same as the sensor radius
+PING_DISTANCE = SENSOR_RADIUS  # The distance the intruder can sense to find nearby nodes
 
 def generate_aperiodic_network(sensor_radius, num_sensors):
     tiles, _ = generate_spectre_tiles()
@@ -69,48 +69,52 @@ def simulate_intruder_attack(network, intruder_position, base_station_position, 
     max_steps = 10000  # Set a reasonable limit to prevent infinite loops
     steps = 0
     visited_nodes = set()
+    time = 0  # Initialize time
 
     while not has_reached_base_station(intruder_position, base_station_position) and steps < max_steps:
         visited_nodes.add(tuple(intruder_position))  # Convert to tuple
         if regular:
-            intruder_position = smart_random_walk_regular(network, intruder_position, visited_nodes)
+            intruder_position, time_increment = ping_and_move_regular(network, intruder_position, visited_nodes)
         else:
-            intruder_position = smart_random_walk_irregular(network, intruder_position, network)
+            intruder_position, time_increment = ping_and_move_irregular(network, intruder_position, visited_nodes)
         
         path.append(intruder_position)
+        time += time_increment  # Increment time
         steps += 1
     
     if steps >= max_steps:
         print("Max steps reached, simulation stopped.")
-    return path
+    return path, time
 
-def smart_random_walk_regular(network, intruder_position, visited_nodes):
-    # Intruder moves to the nearest unvisited node in the network, simulating a regular attack
+def ping_and_move_regular(network, intruder_position, visited_nodes):
+    # Intruder pings to find the nearest unvisited node
+    time_increment = 1  # Time for one ping
+
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
     sorted_indices = np.argsort(distances)
 
     for idx in sorted_indices:
         nearest_node = network[idx]
         if tuple(nearest_node) not in visited_nodes:  # Convert to tuple
-            return nearest_node
+            return nearest_node, time_increment
     
     # If all nodes have been visited, stay in the current position
-    return intruder_position
+    return intruder_position, time_increment
 
-def smart_random_walk_irregular(network, intruder_position, full_network):
-    # Intruder moves in a random direction
-    angle_rad = np.random.uniform(0, 2 * np.pi)
-    new_position = (intruder_position[0] + HOP_DISTANCE * np.cos(angle_rad),
-                    intruder_position[1] + HOP_DISTANCE * np.sin(angle_rad))
-    # Boundary check: if new position is outside network bounds, move back to a random node within the network
-    if not is_within_network(new_position, full_network):
-        new_position = network[np.random.randint(len(network))]
-    return new_position
+def ping_and_move_irregular(network, intruder_position, visited_nodes):
+    # Intruder pings to find the nearest unvisited node
+    time_increment = 1  # Time for one ping
 
-def is_within_network(position, network):
-    min_x, min_y = np.min(network, axis=0)
-    max_x, max_y = np.max(network, axis=0)
-    return min_x <= position[0] <= max_x and min_y <= position[1] <= max_y
+    distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
+    sorted_indices = np.argsort(distances)
+
+    for idx in sorted_indices:
+        nearest_node = network[idx]
+        if tuple(nearest_node) not in visited_nodes:  # Convert to tuple
+            return nearest_node, time_increment
+    
+    # If all nodes have been visited, stay in the current position
+    return intruder_position, time_increment
 
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
@@ -149,16 +153,16 @@ def run_simulation():
     square_base_station = tuple(square_center)
     
     # Simulate attacks
-    aperiodic_path = simulate_intruder_attack(aperiodic_network, INTRUDER_INITIAL_POSITION, aperiodic_base_station, regular=False)
-    hexagonal_path = simulate_intruder_attack(hexagonal_network, INTRUDER_INITIAL_POSITION, hexagonal_base_station, regular=True)
-    triangular_path = simulate_intruder_attack(triangular_network, INTRUDER_INITIAL_POSITION, triangular_base_station, regular=True)
-    square_path = simulate_intruder_attack(square_network, INTRUDER_INITIAL_POSITION, square_base_station, regular=True)
+    aperiodic_path, aperiodic_time = simulate_intruder_attack(aperiodic_network, INTRUDER_INITIAL_POSITION, aperiodic_base_station, regular=False)
+    hexagonal_path, hexagonal_time = simulate_intruder_attack(hexagonal_network, INTRUDER_INITIAL_POSITION, hexagonal_base_station, regular=True)
+    triangular_path, triangular_time = simulate_intruder_attack(triangular_network, INTRUDER_INITIAL_POSITION, triangular_base_station, regular=True)
+    square_path, square_time = simulate_intruder_attack(square_network, INTRUDER_INITIAL_POSITION, square_base_station, regular=True)
     
     # Print results
-    print("Aperiodic Network Path Length:", len(aperiodic_path))
-    print("Hexagonal Network Path Length:", len(hexagonal_path))
-    print("Triangular Network Path Length:", len(triangular_path))
-    print("Square Network Path Length:", len(square_path))
+    print("Aperiodic Network Path Length:", len(aperiodic_path), "Time:", aperiodic_time)
+    print("Hexagonal Network Path Length:", len(hexagonal_path), "Time:", hexagonal_time)
+    print("Triangular Network Path Length:", len(triangular_path), "Time:", triangular_time)
+    print("Square Network Path Length:", len(square_path), "Time:", square_time)
     
     # Plot paths
     plot_path(aperiodic_path, aperiodic_network, "Intruder Path in Aperiodic Network", aperiodic_base_station)
