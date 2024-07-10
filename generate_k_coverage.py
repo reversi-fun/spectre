@@ -2,13 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as mplPolygon, Circle
 from matplotlib.colors import ListedColormap
-from shapely.geometry import Polygon
+from shapely.geometry import Point
 from spectre import buildSpectreBase, transPt, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
-ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
 MAX_ITERATIONS = 3  # Maximum number of iterations to prevent infinite loops
+K_COVERAGE = 2  # Desired level of k-coverage
 
 def calculate_sensor_radius(tile_points):
     """Calculate the sensor radius to inscribe the spectre monotile within a circle."""
@@ -18,26 +18,18 @@ def calculate_sensor_radius(tile_points):
 def generate_spectre_tiles():
     tiles = buildSpectreBase()
     iterations = 0
-    sensor_counts = []
-    
     while iterations < MAX_ITERATIONS:
         tiles = buildSupertiles(tiles)
-        sensor_positions = place_sensors_inscribed(tiles)
-        sensor_counts.append(len(sensor_positions))
         iterations += 1
-        print(f"Iteration {iterations} completed. Number of sensors: {len(sensor_positions)}")
-    
-    return tiles, sensor_counts
+    return tiles
 
 def place_sensors_inscribed(tiles):
     sensor_positions = []
-    
     def add_sensor_points(transformation, label):
         nonlocal sensor_positions
         tile_points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
         centroid = np.mean(tile_points, axis=0)
         sensor_positions.append(centroid)
-    
     tiles["Delta"].forEachTile(add_sensor_points)
     return sensor_positions
 
@@ -45,28 +37,25 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     x_coords = np.arange(0, np.max(sensor_positions[:,0]) + grid_resolution, grid_resolution)
     y_coords = np.arange(0, np.max(sensor_positions[:,1]) + grid_resolution, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
-
     for sensor in sensor_positions:
         for i, x in enumerate(x_coords):
             for j, y in enumerate(y_coords):
                 if np.linalg.norm(sensor - np.array([x, y])) <= sensor_radius:
                     coverage_map[i, j] += 1
-
     return x_coords, y_coords, coverage_map
 
-def calculate_metrics(sensor_positions, coverage_map):
-    total_area = coverage_map.size
-    covered_area = np.sum(coverage_map > 0)
-    sensor_density = len(sensor_positions) / total_area
-
-    overlap_sum = np.sum(coverage_map) - covered_area
-    rate_of_overlap = overlap_sum / total_area
-    coverage_quality = 1 / rate_of_overlap if rate_of_overlap > 0 else float('inf')
-
-    return sensor_density, rate_of_overlap, coverage_quality
-
-def calculate_total_energy_consumption(sensor_positions):
-    return len(sensor_positions) * ENERGY_CONSUMPTION_RATE
+def ensure_k_coverage(sensor_positions, k, sensor_radius, grid_resolution):
+    x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, grid_resolution)
+    while np.min(coverage_map) < k:
+        additional_positions = []
+        for sensor in sensor_positions:
+            for _ in range(k):
+                shift = np.random.normal(scale=sensor_radius, size=2)
+                new_pos = sensor + shift
+                additional_positions.append(new_pos)
+        sensor_positions = np.concatenate((sensor_positions, additional_positions), axis=0)
+        x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, grid_resolution)
+    return x_coords, y_coords, coverage_map, sensor_positions
 
 def plot_coverage_map(x_coords, y_coords, coverage_map):
     fig, ax = plt.subplots(figsize=(15, 15))
@@ -115,7 +104,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     plt.show()
 
 # Generate spectre tiles and count sensors per iteration
-tiles, sensor_counts = generate_spectre_tiles()
+tiles = generate_spectre_tiles()
 
 # Place sensors inscribed within each tile
 sensor_positions = place_sensors_inscribed(tiles)
@@ -125,21 +114,11 @@ sensor_positions = np.array(sensor_positions)
 example_tile_points = [transPt(np.eye(3), pt) for pt in SPECTRE_POINTS]  # Using identity matrix for transformation
 SENSOR_RADIUS = calculate_sensor_radius(example_tile_points)
 
-# Calculate and plot the coverage map
-x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, SENSOR_RADIUS, GRID_RESOLUTION)
+# Ensure k-coverage
+x_coords, y_coords, coverage_map, sensor_positions = ensure_k_coverage(sensor_positions, K_COVERAGE, SENSOR_RADIUS, GRID_RESOLUTION)
+
+# Plot the coverage map
 plot_coverage_map(x_coords, y_coords, coverage_map)
-
-# Calculate metrics
-sensor_density, rate_of_overlap, coverage_quality = calculate_metrics(sensor_positions, coverage_map)
-total_energy_consumption = calculate_total_energy_consumption(sensor_positions)
-
-# Print metrics
-print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
-print(f"Rate of overlap: {rate_of_overlap:.6f}")
-print(f"Coverage quality: {coverage_quality:.6f}")
-print(f"Total energy consumption: {total_energy_consumption:.2f} units")
-print(f"Number of iterations: {MAX_ITERATIONS}")
-print(f"Sensors per iteration: {sensor_counts}")
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions, SENSOR_RADIUS)
