@@ -6,7 +6,7 @@ from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 3
+N_ITERATIONS = 1
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def calculate_sensor_radius(tile_points):
@@ -73,11 +73,22 @@ def plot_coverage_map(x_coords, y_coords, coverage_map):
     cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
     c = ax.pcolormesh(x_coords, y_coords, coverage_map.T, shading='auto', cmap=cmap)
     fig.colorbar(c, ax=ax, ticks=np.arange(0, np.max(coverage_map) + 1, 1))
+    
+    # Calculate the range of x and y coordinates
+    x_range = max(x_coords) - min(x_coords)
+    y_range = max(y_coords) - min(y_coords)
+    
+    # Set the aspect ratio to 'equal' and adjust the limits to center the plot
     ax.set_aspect('equal', adjustable='box')
+    ax.set_xlim(min(x_coords) - x_range * 0.1, max(x_coords) + x_range * 0.1)
+    ax.set_ylim(min(y_coords) - y_range * 0.1, max(y_coords) + y_range * 0.1)
+    
     plt.title("Coverage Map")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
+    plt.tight_layout()  # Adjust the layout to prevent clipping
     plt.show()
+
 
 def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     fig, ax = plt.subplots(figsize=(15, 15))
@@ -141,6 +152,12 @@ print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
 print(f"Rate of overlap: {rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
+# Calculate and print additional metrics
+print(f"Sensor radius: {SENSOR_RADIUS:.2f} units")
+print(f"Number of sensors: {len(sensor_positions)}")
+total_area = len(sensor_positions) / sensor_density
+print(f"Total covered area: {total_area:.2f} square units")
+print(f"Estimated supertile area: {total_area:.2f} square units")
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions, SENSOR_RADIUS)
