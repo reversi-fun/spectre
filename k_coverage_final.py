@@ -7,19 +7,19 @@ from spectre import buildSpectreBase, transPt, buildSupertiles, SPECTRE_POINTS, 
 # Parameters
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
-K_COVERAGE = 2  # Desired k-coverage level
+K_COVERAGE = 3  # Desired k-coverage level
 
 def generate_hierarchical_spectre_tiles(k_coverage, n_iterations):
     tiles_layers = []
     sensor_positions_layers = []
+    scale_factor = 1.0
 
-    for i in range(n_iterations):
+    for _ in range(n_iterations):
         tiles = buildSpectreBase()
-        scale_factor = 1.0 / (i + 1)
-
         for _ in range(k_coverage):
-            tiles = buildSupertiles(tiles)
-
+            tiles = buildSupertiles(tiles)  # Generate supertiles based on k-coverage
+            scale_factor *= 0.7  # Scale factor for hierarchical tiling
+        
         # Scale the tiles
         def scale_transformation(transformation, _):
             scaled_transform = transformation.copy()
@@ -113,7 +113,7 @@ def plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_
         plot_width, plot_height = x_max - x_min + 20, y_max - y_min + 20
 
         ax.set_xlim(x_center - plot_width / 2, x_center + plot_width / 2)
-        ax.set_ylim(y_center - plot_height / 2, y_center + plot_width / 2)
+        ax.set_ylim(y_center - plot_height / 2, y_center + plot_height / 2)
 
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
@@ -131,7 +131,7 @@ def calculate_metrics(sensor_positions, coverage_map):
     
     return sensor_density, coverage_ratio, k_coverage_ratio
 
-def main(k_coverage=2, n_iterations=3):
+def main(k_coverage=3, n_iterations=3):
     print(f"Generating hierarchical Spectre tiles for {k_coverage}-coverage with {n_iterations} iterations")
     
     # Generate hierarchical spectre tiles and sensor positions
@@ -166,4 +166,4 @@ def main(k_coverage=2, n_iterations=3):
     print(f"Sensors per layer: {[len(layer) for layer in sensor_positions_layers]}")
 
 if __name__ == "__main__":
-    main(k_coverage=2, n_iterations=3)  # You can change these parameters as needed
+    main(k_coverage=3, n_iterations=3)  # You can change these parameters as needed

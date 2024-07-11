@@ -7,19 +7,18 @@ from spectre import buildSpectreBase, transPt, buildSupertiles, SPECTRE_POINTS, 
 # Parameters
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
-K_COVERAGE = 2  # Desired k-coverage level
+K_COVERAGE = 3  # Desired k-coverage level
 
-def generate_hierarchical_spectre_tiles(k_coverage, n_iterations):
+def generate_hierarchical_spectre_tiles(k_coverage):
     tiles_layers = []
     sensor_positions_layers = []
-
-    for i in range(n_iterations):
+    scale_factor = 1.0
+    
+    for k in range(k_coverage):
+        # Generate tiles with decreasing scale
         tiles = buildSpectreBase()
-        scale_factor = 1.0 / (i + 1)
-
-        for _ in range(k_coverage):
-            tiles = buildSupertiles(tiles)
-
+        tiles = buildSupertiles(tiles)  # Generate one level of supertiles
+        
         # Scale the tiles
         def scale_transformation(transformation, _):
             scaled_transform = transformation.copy()
@@ -34,6 +33,9 @@ def generate_hierarchical_spectre_tiles(k_coverage, n_iterations):
         # Place sensors for this layer
         sensor_positions = place_sensors_inscribed(tiles)
         sensor_positions_layers.append(sensor_positions)
+        
+        # Reduce scale for the next layer
+        scale_factor *= 0.8
     
     return tiles_layers, sensor_positions_layers
 
@@ -76,62 +78,51 @@ def calculate_hierarchical_coverage(sensor_positions_layers, sensor_radius, grid
     return x_coords, y_coords, coverage_map
 
 def plot_coverage_map(x_coords, y_coords, coverage_map):
-    fig, ax = plt.subplots(figsize=(15, 10))
-    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
-    c = ax.pcolormesh(x_coords, y_coords, coverage_map, shading='auto', cmap=cmap)
-    fig.colorbar(c, ax=ax, ticks=np.arange(0, np.max(coverage_map) + 1, 1))
-    ax.set_aspect('equal', adjustable='box')
+    plt.figure(figsize=(12, 10))
+    plt.imshow(coverage_map, extent=[x_coords.min(), x_coords.max(), y_coords.min(), y_coords.max()], 
+               origin='lower', cmap='viridis', interpolation='nearest')
+    plt.colorbar(label='Coverage Level')
     plt.title(f'Coverage Map (Desired k-coverage: {K_COVERAGE})')
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
     plt.savefig(f"coverage_map_{K_COVERAGE}_coverage.png")
-    plt.show()
+    plt.close()
 
 def plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_layers, sensor_radius):
     fig, ax = plt.subplots(figsize=(15, 15))
-    all_points = []
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(tiles_layers)))
 
-    for layer, (tiles, sensor_positions) in enumerate(zip(tiles_layers, sensor_positions_layers)):
+    for layer, (tiles, sensor_positions, color) in enumerate(zip(tiles_layers, sensor_positions_layers, colors)):
         def draw_tile(transformation, label):
             points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
-            all_points.extend(points)
-            polygon = mplPolygon(points, closed=True, fill=None, edgecolor='blue', alpha=0.5)
+            polygon = mplPolygon(points, closed=True, fill=None, edgecolor=color, alpha=0.5)
             ax.add_patch(polygon)
 
         tiles["Delta"].forEachTile(draw_tile)
 
         for sensor_pos in sensor_positions:
-            circle = Circle(sensor_pos, sensor_radius, color='red', fill=False, linestyle='dotted', alpha=0.5)
+            circle = Circle(sensor_pos, sensor_radius, color=color, fill=False, linestyle='dotted', alpha=0.5)
             ax.add_patch(circle)
-            ax.plot(sensor_pos[0], sensor_pos[1], 'o', color='black', markersize=2, alpha=0.5)
-
-    if all_points:
-        all_points = np.array(all_points)
-        x_min, x_max = all_points[:, 0].min(), all_points[:, 0].max()
-        y_min, y_max = all_points[:, 1].min(), all_points[:, 1].max()
-        x_center, y_center = (x_min + x_max) / 2, (y_min + y_max) / 2
-        plot_width, plot_height = x_max - x_min + 20, y_max - y_min + 20
-
-        ax.set_xlim(x_center - plot_width / 2, x_center + plot_width / 2)
-        ax.set_ylim(y_center - plot_height / 2, y_center + plot_width / 2)
+            ax.plot(sensor_pos[0], sensor_pos[1], 'o', color=color, markersize=2, alpha=0.5)
 
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
     plt.title(f"Hierarchical Spectre Tiling with {K_COVERAGE}-Coverage")
     plt.savefig(f"hierarchical_spectre_tiling_{K_COVERAGE}_coverage.png")
-    plt.show()
+    plt.close()
 
 def calculate_metrics(sensor_positions, coverage_map):
-    total_area = np.sum(coverage_map > 0)  # Total covered area (non-zero cells)
-    k_covered_area = np.sum(coverage_map >= K_COVERAGE)  # Area covered by at least k sensors
+    total_area = coverage_map.size
+    covered_area = np.sum(coverage_map > 0)
+    k_covered_area = np.sum(coverage_map >= K_COVERAGE)
     
     sensor_density = len(sensor_positions) / total_area
-    coverage_ratio = total_area / coverage_map.size
+    coverage_ratio = covered_area / total_area
     k_coverage_ratio = k_covered_area / total_area
     
     return sensor_density, coverage_ratio, k_coverage_ratio
 
-def main(k_coverage=2, n_iterations=3):
+def main(k_coverage=3, n_iterations=3):
     print(f"Generating hierarchical Spectre tiles for {k_coverage}-coverage with {n_iterations} iterations")
     
     # Generate hierarchical spectre tiles and sensor positions
@@ -147,10 +138,38 @@ def main(k_coverage=2, n_iterations=3):
 
     # Calculate and plot the coverage map
     x_coords, y_coords, coverage_map = calculate_hierarchical_coverage(sensor_positions_layers, SENSOR_RADIUS, GRID_RESOLUTION)
-    plot_coverage_map(x_coords, y_coords, coverage_map)
+    
+    plt.figure(figsize=(12, 10))
+    plt.imshow(coverage_map, extent=[x_coords.min(), x_coords.max(), y_coords.min(), y_coords.max()], 
+               origin='lower', cmap='viridis', interpolation='nearest')
+    plt.colorbar(label='Coverage Level')
+    plt.title(f'Coverage Map (Desired k-coverage: {k_coverage})')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.show()
 
     # Plot the hierarchical spectre tiles with sensor nodes
-    plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_layers, SENSOR_RADIUS)
+    plt.figure(figsize=(15, 15))
+    ax = plt.gca()
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(tiles_layers)))
+
+    for layer, (tiles, sensor_positions, color) in enumerate(zip(tiles_layers, sensor_positions_layers, colors)):
+        def draw_tile(transformation, label):
+            points = [transPt(transformation, pt) for pt in SPECTRE_POINTS]
+            polygon = mplPolygon(points, closed=True, fill=None, edgecolor=color, alpha=0.5)
+            ax.add_patch(polygon)
+
+        tiles["Delta"].forEachTile(draw_tile)
+
+        for sensor_pos in sensor_positions:
+            circle = Circle(sensor_pos, SENSOR_RADIUS, color=color, fill=False, linestyle='dotted', alpha=0.5)
+            ax.add_patch(circle)
+            ax.plot(sensor_pos[0], sensor_pos[1], 'o', color=color, markersize=2, alpha=0.5)
+
+    ax.set_aspect('equal', adjustable='box')
+    plt.grid(True)
+    plt.title(f"Hierarchical Spectre Tiling with {k_coverage}-Coverage")
+    plt.show()
 
     # Calculate metrics
     all_sensors = np.vstack(sensor_positions_layers)
@@ -166,4 +185,4 @@ def main(k_coverage=2, n_iterations=3):
     print(f"Sensors per layer: {[len(layer) for layer in sensor_positions_layers]}")
 
 if __name__ == "__main__":
-    main(k_coverage=2, n_iterations=3)  # You can change these parameters as needed
+    main(k_coverage=3, n_iterations=3)  # You can change these parameters as needed
