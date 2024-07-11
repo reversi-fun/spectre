@@ -10,7 +10,7 @@ GRID_RESOLUTION = 1  # Resolution of the coverage grid
 MAX_ITERATIONS = 3  # Maximum number of iterations to generate spectre tiles
 K_COVERAGE = 2  # Desired level of k-coverage
 MAX_ADDITIONAL_SENSORS = 5000  # Maximum number of additional sensors to ensure K-coverage
-MAX_K_COVERAGE_ITERATIONS = 3  # Maximum iterations for ensuring K-coverage
+MAX_K_COVERAGE_ITERATIONS = 10  # Maximum iterations for ensuring K-coverage
 
 def calculate_sensor_radius(tile_points):
     """Calculate the sensor radius to inscribe the spectre monotile within a circle."""
@@ -55,7 +55,7 @@ def ensure_k_coverage(sensor_positions, k, sensor_radius, grid_resolution):
         additional_positions = []
         for sensor in sensor_positions:
             for _ in range(k):
-                shift = np.random.normal(scale=sensor_radius, size=2)
+                shift = np.random.normal(scale=sensor_radius / 2, size=2)  # Shift should be smaller to retain aperiodicity
                 new_pos = sensor + shift
                 additional_positions.append(new_pos)
         sensor_positions = np.concatenate((sensor_positions, additional_positions), axis=0)

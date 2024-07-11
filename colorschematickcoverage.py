@@ -11,7 +11,7 @@ from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTR
 # Parameters
 N_ITERATIONS = 1
 SENSOR_RADIUS = 10  # Adjust based on the actual sensing range required
-K_COVERAGE = 1  # Desired level of k-coverage
+K_COVERAGE = 2  # Desired level of k-coverage
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def generate_spectre_tiles(n_iterations):

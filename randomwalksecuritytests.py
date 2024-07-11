@@ -4,9 +4,9 @@ from shapely.geometry import Point, Polygon
 from securitymetricsaperiodic_hexagonal import generate_spectre_tiles, generate_hexagonal_network, transPt, SPECTRE_POINTS
 
 # Parameters
-NUM_SENSORS = 760  # Number of sensors for fair comparison
+NUM_SENSORS = 559  # Number of sensors for fair comparison
 SENSOR_RADIUS = 10  # Ensuring both networks use the same sensor radius
-INTRUDER_INITIAL_POSITION = (0, -200)
+INTRUDER_INITIAL_POSITION = (100, -100)
 HOP_DISTANCE = SENSOR_RADIUS  # The distance of one hop, which is the same as the sensor radius
 
 def generate_aperiodic_network(sensor_radius, num_sensors):
@@ -66,7 +66,7 @@ def generate_square_network(num_sensors, sensor_radius):
 
 def simulate_intruder_attack(network, intruder_position, base_station_position, regular=True):
     path = [intruder_position]
-    max_steps = 1000  # Set a reasonable limit to prevent infinite loops
+    max_steps = 10000  # Set a reasonable limit to prevent infinite loops
     steps = 0
     visited_nodes = set()
 
@@ -75,7 +75,7 @@ def simulate_intruder_attack(network, intruder_position, base_station_position, 
         if regular:
             intruder_position = smart_random_walk_regular(network, intruder_position, visited_nodes)
         else:
-            intruder_position = smart_random_walk_irregular(network, intruder_position)
+            intruder_position = smart_random_walk_irregular(network, intruder_position, network)
         
         path.append(intruder_position)
         steps += 1
@@ -97,12 +97,20 @@ def smart_random_walk_regular(network, intruder_position, visited_nodes):
     # If all nodes have been visited, stay in the current position
     return intruder_position
 
-def smart_random_walk_irregular(network, intruder_position):
+def smart_random_walk_irregular(network, intruder_position, full_network):
     # Intruder moves in a random direction
     angle_rad = np.random.uniform(0, 2 * np.pi)
     new_position = (intruder_position[0] + HOP_DISTANCE * np.cos(angle_rad),
                     intruder_position[1] + HOP_DISTANCE * np.sin(angle_rad))
+    # Boundary check: if new position is outside network bounds, move back to a random node within the network
+    if not is_within_network(new_position, full_network):
+        new_position = network[np.random.randint(len(network))]
     return new_position
+
+def is_within_network(position, network):
+    min_x, min_y = np.min(network, axis=0)
+    max_x, max_y = np.max(network, axis=0)
+    return min_x <= position[0] <= max_x and min_y <= position[1] <= max_y
 
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
