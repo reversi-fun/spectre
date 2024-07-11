@@ -6,8 +6,7 @@ from spectre import buildSpectreBase, transPt, buildSupertiles, SPECTRE_POINTS, 
 
 # Parameters
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
-ENERGY_CONSUMPTION_RATE = 1  # Example value for energy consumption per sensor
-K_COVERAGE = 2  # Desired k-coverage level
+K_COVERAGE = 3  # Desired k-coverage level
 
 def generate_hierarchical_spectre_tiles(k_coverage, n_iterations):
     tiles_layers = []
@@ -77,8 +76,8 @@ def calculate_hierarchical_coverage(sensor_positions_layers, sensor_radius, grid
 
 def plot_coverage_map(x_coords, y_coords, coverage_map):
     fig, ax = plt.subplots(figsize=(15, 10))
-    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple'])
-    c = ax.pcolormesh(x_coords, y_coords, coverage_map, shading='auto', cmap=cmap)
+    cmap = ListedColormap(['white', 'lightblue', 'blue', 'darkblue', 'purple', 'pink', 'orange'])
+    c = ax.pcolormesh(x_coords, y_coords, coverage_map, shading='auto', cmap=cmap, vmin=0, vmax=np.max(coverage_map))
     fig.colorbar(c, ax=ax, ticks=np.arange(0, np.max(coverage_map) + 1, 1))
     ax.set_aspect('equal', adjustable='box')
     plt.title(f'Coverage Map (Desired k-coverage: {K_COVERAGE})')
@@ -113,7 +112,7 @@ def plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_
         plot_width, plot_height = x_max - x_min + 20, y_max - y_min + 20
 
         ax.set_xlim(x_center - plot_width / 2, x_center + plot_width / 2)
-        ax.set_ylim(y_center - plot_height / 2, y_center + plot_width / 2)
+        ax.set_ylim(y_center - plot_height / 2, y_center + plot_height / 2)
 
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
@@ -121,17 +120,26 @@ def plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_
     plt.savefig(f"hierarchical_spectre_tiling_{K_COVERAGE}_coverage.png")
     plt.show()
 
-def calculate_metrics(sensor_positions, coverage_map):
+def calculate_covered_area(tiles_layers):
+    total_area = 0.0
+    for tiles in tiles_layers:
+        for tile in tiles.values():
+            tile_points = [transPt(np.eye(3), pt) for pt in SPECTRE_POINTS]
+            polygon = mplPolygon(tile_points)
+            total_area += polygon.get_path().get_extents().area
+    return total_area
+
+def calculate_metrics(sensor_positions, coverage_map, total_covered_area):
     total_area = np.sum(coverage_map > 0)  # Total covered area (non-zero cells)
     k_covered_area = np.sum(coverage_map >= K_COVERAGE)  # Area covered by at least k sensors
     
-    sensor_density = len(sensor_positions) / total_area
-    coverage_ratio = total_area / coverage_map.size
+    sensor_density = len(sensor_positions) / total_covered_area
+    coverage_ratio = total_covered_area / total_area
     k_coverage_ratio = k_covered_area / total_area
     
     return sensor_density, coverage_ratio, k_coverage_ratio
 
-def main(k_coverage=2, n_iterations=3):
+def main(k_coverage=3, n_iterations=3):
     print(f"Generating hierarchical Spectre tiles for {k_coverage}-coverage with {n_iterations} iterations")
     
     # Generate hierarchical spectre tiles and sensor positions
@@ -152,9 +160,12 @@ def main(k_coverage=2, n_iterations=3):
     # Plot the hierarchical spectre tiles with sensor nodes
     plot_hierarchical_spectre_tiles_with_sensors(tiles_layers, sensor_positions_layers, SENSOR_RADIUS)
 
+    # Calculate the total covered area using the actual shape of tiles
+    total_covered_area = calculate_covered_area(tiles_layers)
+
     # Calculate metrics
     all_sensors = np.vstack(sensor_positions_layers)
-    sensor_density, coverage_ratio, k_coverage_ratio = calculate_metrics(all_sensors, coverage_map)
+    sensor_density, coverage_ratio, k_coverage_ratio = calculate_metrics(all_sensors, coverage_map, total_covered_area)
 
     # Print metrics
     print(f"Desired k-coverage: {k_coverage}")
@@ -166,4 +177,4 @@ def main(k_coverage=2, n_iterations=3):
     print(f"Sensors per layer: {[len(layer) for layer in sensor_positions_layers]}")
 
 if __name__ == "__main__":
-    main(k_coverage=2, n_iterations=3)  # You can change these parameters as needed
+    main(k_coverage=3, n_iterations=3)  # You can change these parameters as needed
