@@ -4,7 +4,7 @@ from shapely.geometry import Point, Polygon
 from securitymetricsaperiodic_hexagonal import generate_spectre_tiles, generate_hexagonal_network, transPt, SPECTRE_POINTS
 
 # Parameters
-NUM_SENSORS = 847
+NUM_SENSORS = 559
 SENSOR_RADIUS = 10
 INTRUDER_INITIAL_POSITION = (100, -100)
 HOP_DISTANCE = SENSOR_RADIUS
