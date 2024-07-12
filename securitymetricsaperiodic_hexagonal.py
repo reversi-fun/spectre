@@ -190,4 +190,4 @@ def run_simulation(num_iterations=3):
     print(f"Triangular network sensors: {len(triangular_network)}")
     print(f"Square network sensors: {len(square_network)}")
 
-run_simulation(num_iterations=2)
+run_simulation(num_iterations=3)
