@@ -6,7 +6,7 @@ import random
 
 # Parameters
 SENSOR_RADIUS = 10
-HOP_DISTANCE = SENSOR_RADIUS
+HOP_DISTANCE = SENSOR_RADIUS / 2
 
 def generate_triangular_network(num_sensors, sensor_radius):
     sensor_positions = []

@@ -6,7 +6,7 @@ import random
 
 # Parameters
 SENSOR_RADIUS = 10
-HOP_DISTANCE = SENSOR_RADIUS 
+HOP_DISTANCE = SENSOR_RADIUS / 2
 
 def generate_triangular_network(num_sensors, sensor_radius):
     sensor_positions = []
@@ -57,18 +57,15 @@ def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
     sorted_indices = np.argsort(distances)
     for idx in sorted_indices:
         nearest_node = network[idx]
-        if tuple(nearest_node) not in visited_nodes:
-            step_time = calculate_time_step(nearest_node, intruder_position, network, is_aperiodic)
+        if tuple(nearest_node) not in visited_nodes and distances[idx] <= SENSOR_RADIUS:
+            step_time = calculate_time_step(nearest_node, intruder_position, network)
             return nearest_node, step_time
     return intruder_position, 0
 
-def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
+def calculate_time_step(nearest_node, current_node, network):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
-    
-    if is_aperiodic:
-        complexity_factor *= 1.0  # Adjust complexity factor for aperiodic networks
     return distance / SENSOR_RADIUS * complexity_factor
 
 def get_unique_angles_distances(current_node, network):

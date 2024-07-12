@@ -6,7 +6,7 @@ import random
 
 # Parameters
 SENSOR_RADIUS = 10
-HOP_DISTANCE = SENSOR_RADIUS 
+HOP_DISTANCE = SENSOR_RADIUS
 
 def generate_triangular_network(num_sensors, sensor_radius):
     sensor_positions = []
@@ -66,9 +66,6 @@ def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
-    
-    if is_aperiodic:
-        complexity_factor *= 1.0  # Adjust complexity factor for aperiodic networks
     return distance / SENSOR_RADIUS * complexity_factor
 
 def get_unique_angles_distances(current_node, network):
@@ -156,15 +153,56 @@ def run_simulation(num_iterations=3):
     triangular_time_per_hop = triangular_time / len(triangular_path)
     square_time_per_hop = square_time / len(square_path)
 
-    print(f"Total number of sensors: {num_sensors}")
-    print("Aperiodic Network Path Length:", len(aperiodic_path), "Time Steps:", aperiodic_time, "Time per Hop:", aperiodic_time_per_hop)
-    print("Hexagonal Network Path Length:", len(hexagonal_path), "Time Steps:", hexagonal_time, "Time per Hop:", hexagonal_time_per_hop)
-    print("Triangular Network Path Length:", len(triangular_path), "Time Steps:", triangular_time, "Time per Hop:", triangular_time_per_hop)
-    print("Square Network Path Length:", len(square_path), "Time Steps:", square_time, "Time per Hop:", square_time_per_hop)
+    return {
+        "aperiodic": (aperiodic_time, len(aperiodic_path)),
+        "hexagonal": (hexagonal_time, len(hexagonal_path)),
+        "triangular": (triangular_time, len(triangular_path)),
+        "square": (square_time, len(square_path)),
+    }
 
-    plot_path(aperiodic_path, aperiodic_network, "Intruder Path in Aperiodic Network", aperiodic_base_station)
-    plot_path(hexagonal_path, hexagonal_network, "Intruder Path in Hexagonal Network", hexagonal_base_station)
-    plot_path(triangular_path, triangular_network, "Intruder Path in Triangular Network", triangular_base_station)
-    plot_path(square_path, square_network, "Intruder Path in Square Network", square_base_station)
+def run_multiple_simulations(num_rounds=1000, num_iterations=3):
+    results = {
+        "aperiodic": [],
+        "hexagonal": [],
+        "triangular": [],
+        "square": []
+    }
 
-run_simulation(num_iterations=3)
+    for _ in range(num_rounds):
+        result = run_simulation(num_iterations)
+        for key in results:
+            results[key].append(result[key])
+
+    avg_results = {
+        key: (
+            np.mean([r[0] for r in results[key]]), 
+            np.mean([r[1] for r in results[key]])
+        )
+        for key in results
+    }
+
+    return avg_results
+
+def plot_average_results(avg_results):
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    topologies = list(avg_results.keys())
+    times = [avg_results[topology][0] for topology in topologies]
+    path_lengths = [avg_results[topology][1] for topology in topologies]
+
+    markers = ['o', 's', '^', 'D']
+    colors = ['r', 'g', 'b', 'm']
+    labels = ['Aperiodic', 'Hexagonal', 'Triangular', 'Square']
+
+    for i, topology in enumerate(topologies):
+        ax.plot(path_lengths[i], times[i], marker=markers[i], color=colors[i], label=labels[i], linestyle='None')
+
+    ax.set_xlabel('Average Path Length')
+    ax.set_ylabel('Average Time Steps')
+    ax.set_title('Average Time Steps vs Path Length for Different Network Topologies')
+    ax.legend()
+    plt.grid(True)
+    plt.show()
+
+avg_results = run_multiple_simulations(num_rounds=1000, num_iterations=3)
+plot_average_results(avg_results)
