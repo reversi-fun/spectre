@@ -6,7 +6,7 @@ from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 1
+N_ITERATIONS = 2
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def calculate_sensor_radius(tile_points):
@@ -33,8 +33,8 @@ def place_sensors_inscribed(tiles):
     return sensor_positions
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(-200, 200, grid_resolution)
-    y_coords = np.arange(-200, 200, grid_resolution)
+    x_coords = np.arange(-500, 500, grid_resolution)
+    y_coords = np.arange(-500, 500, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:
@@ -155,7 +155,7 @@ print(f"Total energy consumption: {total_energy_consumption:.2f} units")
 # Calculate and print additional metrics
 print(f"Sensor radius: {SENSOR_RADIUS:.2f} units")
 print(f"Number of sensors: {len(sensor_positions)}")
-total_area = len(sensor_positions) / sensor_density
+total_area = np.sum(coverage_map > 0) * GRID_RESOLUTION**2
 print(f"Total covered area: {total_area:.2f} square units")
 print(f"Estimated supertile area: {total_area:.2f} square units")
 

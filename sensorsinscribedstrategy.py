@@ -5,7 +5,7 @@ from matplotlib.colors import ListedColormap
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 1
+N_ITERATIONS = 2
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def calculate_sensor_radius(tile_points):
@@ -32,8 +32,8 @@ def place_sensors_inscribed(tiles):
     return sensor_positions
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(-200, 200, grid_resolution)
-    y_coords = np.arange(-200, 200, grid_resolution)
+    x_coords = np.arange(-500, 500, grid_resolution)
+    y_coords = np.arange(-500, 500, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:
