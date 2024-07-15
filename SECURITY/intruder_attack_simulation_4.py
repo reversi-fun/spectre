@@ -4,45 +4,51 @@ import numpy as np
 import matplotlib.pyplot as plt
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 import random
+from collections import deque
 
 # Parameters
 SENSOR_RADIUS = 10
-HOP_DISTANCE = SENSOR_RADIUS * 2
-MAX_HOPS = 1000
+HOP_DISTANCE = SENSOR_RADIUS
 
 def simulate_intruder_attack(network, intruder_position, base_station_position, network_type):
     path = [intruder_position]
     time_steps = 0
     visited_nodes = set()
     is_aperiodic = network_type == 'aperiodic'
-    hops = 0
-    first_hop = True
+    flagged_hops = 0
 
-    while not has_reached_base_station(intruder_position, base_station_position) and hops < MAX_HOPS:
+    while not has_reached_base_station(intruder_position, base_station_position):
         visited_nodes.add(tuple(intruder_position))
-        intruder_position, step_time, hop_distance, pattern_found = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic, first_hop)
-        path.append(intruder_position)
-        time_steps += step_time
-        hops += 1
-        first_hop = False
-
-        print(f"New intruder position: {intruder_position}, Step time: {step_time}, Hop distance: {hop_distance}, Pattern found: {pattern_found}")
+        next_position, step_time, pattern_found, hop_distance = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
         
         if hop_distance > SENSOR_RADIUS:
-            print(f"Flagged hop: {hop_distance}")
+            flagged_hops += 1
+        
+        if np.array_equal(intruder_position, next_position):
+            next_position = bfs_find_next_node(network, intruder_position, visited_nodes)
+        
+        intruder_position = next_position
+        path.append(intruder_position)
+        time_steps += step_time
 
-    return path, time_steps, hops
+        print(f"New intruder position: {intruder_position}, Step time: {step_time}, Hop distance: {hop_distance}, Pattern found: {pattern_found}")
 
-def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic, first_hop):
+    total_hops = len(path) - 1
+    flagged_percentage = (flagged_hops / total_hops) * 100 if total_hops > 0 else 0
+
+    print(f"Flagged hops: {flagged_hops}, Total hops: {total_hops}, Percentage: {flagged_percentage:.2f}%")
+    return path, time_steps, flagged_hops, total_hops
+
+def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
     sorted_indices = np.argsort(distances)
     for idx in sorted_indices:
         nearest_node = network[idx]
         hop_distance = np.linalg.norm(np.array(nearest_node) - np.array(intruder_position))
-        if tuple(nearest_node) not in visited_nodes and (first_hop or hop_distance <= SENSOR_RADIUS):
+        if tuple(nearest_node) not in visited_nodes and hop_distance <= SENSOR_RADIUS:
             step_time = calculate_time_step(nearest_node, intruder_position, network)
             pattern_found = detect_pattern(nearest_node, network)
-            return nearest_node, step_time, hop_distance, pattern_found
+            return nearest_node, step_time, pattern_found, hop_distance
     # If no new node found within range, return to a visited node
     for idx in sorted_indices:
         nearest_node = network[idx]
@@ -50,8 +56,8 @@ def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic, f
         if hop_distance <= SENSOR_RADIUS:
             step_time = calculate_time_step(nearest_node, intruder_position, network)
             pattern_found = detect_pattern(nearest_node, network)
-            return nearest_node, step_time, hop_distance, pattern_found
-    return intruder_position, 0, 0, False
+            return nearest_node, step_time, pattern_found, hop_distance
+    return intruder_position, 0, False, 0
 
 def calculate_time_step(nearest_node, current_node, network):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
@@ -84,6 +90,20 @@ def detect_pattern(current_node, network):
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
+def bfs_find_next_node(network, intruder_position, visited_nodes):
+    queue = deque([intruder_position])
+    while queue:
+        current_position = queue.popleft()
+        distances = np.linalg.norm(np.array(network) - np.array(current_position), axis=1)
+        for idx in np.argsort(distances):
+            nearest_node = network[idx]
+            if tuple(nearest_node) not in visited_nodes:
+                hop_distance = np.linalg.norm(np.array(nearest_node) - np.array(intruder_position))
+                if hop_distance <= SENSOR_RADIUS:
+                    return nearest_node
+                queue.append(nearest_node)
+    return intruder_position
+
 def plot_network_with_path(network, path, base_station_position, title):
     fig, ax = plt.subplots()
     network = np.array(network)
@@ -91,10 +111,8 @@ def plot_network_with_path(network, path, base_station_position, title):
     
     # Plot sensors and their ranges
     for node in network:
-        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='yellow', alpha=0.2)
-        comm_circle = plt.Circle(node, SENSOR_RADIUS * 2, color='purple', alpha=0.1)
+        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='darkblue', alpha=0.2)
         ax.add_artist(sensor_circle)
-        ax.add_artist(comm_circle)
         plt.plot(node[0], node[1], 'bo', markersize=2)
     
     # Plot base station
@@ -138,11 +156,17 @@ def run_simulation():
     base_stations = [aperiodic_base_station, hexagonal_base_station, triangular_base_station, square_base_station]
 
     for network_type, network, base_station in zip(network_types, networks, base_stations):
-        intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
-        path, time_steps, hops = simulate_intruder_attack(network, intruder_initial_position, base_station, network_type)
-        
-        print(f"{network_type} Network - Total hops: {hops}, Time steps: {time_steps}")
-        plot_network_with_path(network, path, base_station, f'{network_type} Network')
+        print(f"Running simulation for {network_type} network...")
+        try:
+            intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
+            path, _, flagged_hops, total_hops = simulate_intruder_attack(network, intruder_initial_position, base_station, network_type)
+            
+            if len(path) > 1:
+                plot_network_with_path(network, path, base_station, f'{network_type} Network')
+            else:
+                print(f"No valid path found for {network_type} network.")
+        except Exception as e:
+            print(f"Error in {network_type} network simulation: {e}")
 
 if __name__ == "__main__":
     run_simulation()
