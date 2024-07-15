@@ -10,7 +10,7 @@ from metrics_calculation import calculate_detection_rate, calculate_false_positi
 # Parameters
 SENSOR_RADIUS = 10
 NETWORK_SIZES = [9, 71, 559]  # Different sizes for scalability tests
-NUM_ITERATIONS = 10  # Number of iterations for averaging results
+NUM_ITERATIONS = 100  # Number of iterations for averaging results
 
 def run_scalability_tests():
     results = {size: {network_type: [] for network_type in ['Aperiodic', 'Hexagonal', 'Triangular', 'Square']} for size in NETWORK_SIZES}

@@ -160,7 +160,7 @@ def run_simulation(num_iterations=3):
         "square": (square_time, len(square_path)),
     }
 
-def run_multiple_simulations(num_rounds=1000, num_iterations=3):
+def run_multiple_simulations(num_rounds=10, num_iterations=3):
     results = {
         "aperiodic": [],
         "hexagonal": [],
