@@ -60,7 +60,7 @@ def main():
 
     num_sensors = 559  # Example value
     sensor_radius = SENSOR_RADIUS
-    num_iterations = 3
+    num_iterations = 5
 
     # Generate networks
     aperiodic_network = generate_aperiodic_network(sensor_radius, num_sensors, num_iterations)

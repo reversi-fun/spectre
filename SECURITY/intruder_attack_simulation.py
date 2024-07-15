@@ -16,7 +16,7 @@ def simulate_intruder_attack(network, intruder_position, base_station_position, 
     is_aperiodic = network_type == 'aperiodic'
     while not has_reached_base_station(intruder_position, base_station_position):
         visited_nodes.add(tuple(intruder_position))
-        intruder_position, step_time = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        intruder_position, step_time, pattern_found = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
         path.append(intruder_position)
         time_steps += step_time
     return path, time_steps
@@ -27,11 +27,12 @@ def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
     for idx in sorted_indices:
         nearest_node = network[idx]
         if tuple(nearest_node) not in visited_nodes:
-            step_time = calculate_time_step(nearest_node, intruder_position, network, is_aperiodic)
-            return nearest_node, step_time
-    return intruder_position, 0
+            step_time = calculate_time_step(nearest_node, intruder_position, network)
+            pattern_found = detect_pattern(nearest_node, network)
+            return nearest_node, step_time, pattern_found
+    return intruder_position, 0, False
 
-def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
+def calculate_time_step(nearest_node, current_node, network):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
@@ -55,10 +56,14 @@ def get_unique_angles_distances(current_node, network):
     
     return unique_angles, unique_distances
 
+def detect_pattern(current_node, network):
+    unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
+    return len(unique_angles) <= 3 and len(unique_distances) <= 3
+
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
-def run_simulation(num_iterations=100):
+def run_simulation(num_iterations=10):
     random.seed()  # Ensure randomness in each simulation run
 
     global SENSOR_RADIUS
