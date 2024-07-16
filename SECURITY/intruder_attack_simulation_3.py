@@ -8,7 +8,7 @@ from collections import deque
 
 # Parameters
 SENSOR_RADIUS = 10
-HOP_DISTANCE = SENSOR_RADIUS
+HOP_DISTANCE = SENSOR_RADIUS * 2
 
 def simulate_intruder_attack(network, intruder_position, base_station_position, network_type):
     path = [intruder_position]
