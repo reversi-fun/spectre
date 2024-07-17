@@ -101,7 +101,7 @@ def plot_network_with_path(network, path, base_station_position, title):
     
     # Plot sensors and their ranges
     for node in network:
-        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='darkblue', alpha=0.2)
+        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='blue', alpha=0.2)
         ax.add_artist(sensor_circle)
         plt.plot(node[0], node[1], 'bo', markersize=2)
     

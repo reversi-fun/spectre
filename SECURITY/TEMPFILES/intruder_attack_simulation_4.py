@@ -7,8 +7,12 @@ import random
 
 # Parameters
 SENSOR_RADIUS = 10
+<<<<<<< Updated upstream
 COMMUNICATION_RANGE = SENSOR_RADIUS * 2
 COMPROMISED_PERCENTAGE = 0.01
+=======
+HOP_DISTANCE = SENSOR_RADIUS * 2
+>>>>>>> Stashed changes
 
 def simulate_intruder_attack(network, compromised_positions, base_station_position, network_type):
     paths = []
@@ -17,6 +21,7 @@ def simulate_intruder_attack(network, compromised_positions, base_station_positi
     visited_nodes = set()
     reached_base = False
     is_aperiodic = network_type == 'aperiodic'
+<<<<<<< Updated upstream
 
     for intruder_position in compromised_positions:
         path = [intruder_position]
@@ -37,11 +42,24 @@ def simulate_intruder_attack(network, compromised_positions, base_station_positi
     return paths, time_steps, total_hops, reached_base
 
 def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic, base_station_position):
+=======
+    while not has_reached_base_station(intruder_position, base_station_position):
+        visited_nodes.add(tuple(intruder_position))
+        intruder_position, step_time, reachable = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        if not reachable:
+            break
+        path.append(intruder_position)
+        time_steps += step_time
+    return path, time_steps
+
+def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
+>>>>>>> Stashed changes
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
     sorted_indices = np.argsort(distances)
     for idx in sorted_indices:
         nearest_node = network[idx]
         if tuple(nearest_node) not in visited_nodes:
+<<<<<<< Updated upstream
             step_time = calculate_time_step(nearest_node, intruder_position, network)
             pattern_found = detect_pattern(nearest_node, network)
             angle_to_base = calculate_angle_to_base(nearest_node, base_station_position)
@@ -55,8 +73,13 @@ def calculate_angle_to_base(nearest_node, base_station_position):
     if angle < 0:
         angle += 360
     return angle
+=======
+            step_time = calculate_time_step(nearest_node, intruder_position, network, is_aperiodic)
+            return nearest_node, step_time, True
+    return intruder_position, 0, False
+>>>>>>> Stashed changes
 
-def calculate_time_step(nearest_node, current_node, network):
+def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
@@ -80,6 +103,7 @@ def get_unique_angles_distances(current_node, network):
     
     return unique_angles, unique_distances
 
+<<<<<<< Updated upstream
 def detect_pattern(current_node, network):
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     
@@ -92,6 +116,12 @@ def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
 def plot_network_with_paths(network, paths, base_station_position, title):
+=======
+def has_reached_base_station(position, base_station_position):
+    return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
+
+def plot_network_with_path(network, path, base_station_position, title):
+>>>>>>> Stashed changes
     fig, ax = plt.subplots()
     network = np.array(network)
     
@@ -119,7 +149,11 @@ def plot_network_with_paths(network, paths, base_station_position, title):
     plt.axis('equal')
     plt.show()
 
+<<<<<<< Updated upstream
 def run_simulation(num_iterations=1, num_rounds=10):
+=======
+def run_simulation(num_iterations=10):
+>>>>>>> Stashed changes
     random.seed()  # Ensure randomness in each simulation run
 
     global SENSOR_RADIUS
@@ -142,6 +176,7 @@ def run_simulation(num_iterations=1, num_rounds=10):
     networks = [aperiodic_network, hexagonal_network, triangular_network, square_network]
     base_stations = [aperiodic_base_station, hexagonal_base_station, triangular_base_station, square_base_station]
     
+<<<<<<< Updated upstream
     results = {network_type: {'time_steps': [], 'total_hops': [], 'compromised_nodes': [], 'reached_base': []} for network_type in network_types}
     
     for round in range(num_rounds):
@@ -193,7 +228,36 @@ def plot_results(avg_metrics):
     ax.set_xticklabels(network_types)
     ax.legend()
 
+=======
+    results = {network_type: [] for network_type in network_types}
+    
+    for i in range(num_iterations):
+        for network_type, network, base_station in zip(network_types, networks, base_stations):
+            intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
+            path, time_steps = simulate_intruder_attack(network, intruder_initial_position, base_station, network_type)
+            results[network_type].append(time_steps)
+            plot_network_with_path(network, path, base_station, f'{network_type} Network')
+        print(f"Iteration {i + 1} completed.")
+
+    # Calculate average time steps
+    avg_time_steps = {network_type: np.mean(results[network_type]) for network_type in network_types}
+
+    # Plot results
+    plot_results(avg_time_steps)
+
+def plot_results(avg_time_steps):
+    fig, ax = plt.subplots()
+    network_types = list(avg_time_steps.keys())
+    avg_times = list(avg_time_steps.values())
+    
+    ax.bar(network_types, avg_times, color=['red', 'green', 'blue', 'purple'])
+    
+    ax.set_xlabel('Network Topology')
+    ax.set_ylabel('Average Time Steps')
+    ax.set_title('Average Time Steps for Different Network Topologies')
+    
+>>>>>>> Stashed changes
     plt.show()
 
 if __name__ == "__main__":
-    run_simulation()
+    run_simulation(num_iterations=1)
