@@ -33,8 +33,8 @@ def place_sensors_inscribed(tiles):
     return sensor_positions
 
 def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(-100, 100, grid_resolution)
-    y_coords = np.arange(-100, 100, grid_resolution)
+    x_coords = np.arange(-50, 50, grid_resolution)
+    y_coords = np.arange(-50, 50, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:

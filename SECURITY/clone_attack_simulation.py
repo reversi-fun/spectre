@@ -167,4 +167,4 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
         print(f"Total detected cloned nodes: {len(results[network_type]['detected_clones'])}")
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=10, num_rounds=3)
+    run_simulation(num_iterations=1, num_rounds=1)
