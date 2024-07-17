@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 import random
 
@@ -10,6 +11,9 @@ SENSOR_RADIUS = 10
 COMMUNICATION_RANGE = SENSOR_RADIUS * 2
 CLONE_PERCENTAGE = 0.01
 DETECTION_THRESHOLD = 0.1  # Probability threshold for detecting a cloned node
+
+# Seaborn settings for professional plots
+sns.set(style="whitegrid")
 
 def generate_networks(sensor_radius, num_sensors):
     aperiodic_network = generate_aperiodic_network(sensor_radius, num_sensors, 3)
@@ -36,6 +40,7 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
     total_hops = 0
     detected_clones = set()
     compromised_nodes = set(clone_positions)
+    base_station_reached = False
 
     for clone_position in clone_positions:
         path = [clone_position]
@@ -57,11 +62,15 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
             if random.random() < DETECTION_THRESHOLD:
                 detected_clones.add(tuple(clone_position))
                 detections += 1
+                break
             if has_reached_base_station(clone_position, base_station_position):
+                base_station_reached = True
                 break
         paths.append(path)
+        if base_station_reached:
+            break
     
-    return detections, paths, time_steps, total_hops, detected_clones, len(compromised_nodes)
+    return detections, paths, time_steps, total_hops, detected_clones, len(compromised_nodes), base_station_reached
 
 def smart_random_walk(network, intruder_position, visited_nodes):
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
@@ -156,14 +165,14 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
         for network_type, network in networks.items():
             clone_positions = clone_positions_per_network[network_type]
             for iteration in range(num_iterations):
-                detections, paths, time_steps, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
+                detections, paths, time_steps, total_hops, detected_clones, compromised_nodes, base_station_reached = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
                 results[network_type]['detections'] += detections
                 results[network_type]['paths'].extend(paths)
                 results[network_type]['time_steps'] += time_steps
                 results[network_type]['total_hops'] += total_hops
                 results[network_type]['detected_clones'].update(detected_clones)
                 results[network_type]['compromised_nodes'] += compromised_nodes
-                if has_reached_base_station(paths[-1][-1], tuple(np.mean(network, axis=0))):
+                if base_station_reached:
                     results[network_type]['base_station_reached'] += 1
             if round_idx == 0 and iteration == 0:
                 plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], tuple(np.mean(network, axis=0)), f'{network_type} Network')
@@ -185,31 +194,38 @@ def plot_metrics(results, num_rounds):
     base_station_reached_percentage = [(results[network_type]['base_station_reached'] / num_rounds) * 100 for network_type in network_types]
     avg_compromised_nodes = [results[network_type]['compromised_nodes'] / num_rounds for network_type in network_types]
     total_detections = [results[network_type]['detections'] for network_type in network_types]
+
+    markers = ['o', 's', 'D', '^']  # Different markers for each network type
     
     fig, axs = plt.subplots(5, 1, figsize=(10, 20))
 
-    axs[0].bar(network_types, avg_time_steps, color=['red', 'green', 'blue', 'purple'])
-    axs[0].set_xlabel('Network Topology')
+    for i, network_type in enumerate(network_types):
+        sns.lineplot(x=range(num_rounds), y=[results[network_type]['time_steps'] / (round + 1) for round in range(num_rounds)], marker=markers[i], ax=axs[0], label=network_type)
+    axs[0].set_xlabel('Round')
     axs[0].set_ylabel('Average Time Steps')
     axs[0].set_title('Average Time Steps for Different Network Topologies')
 
-    axs[1].bar(network_types, avg_total_hops, color=['red', 'green', 'blue', 'purple'])
-    axs[1].set_xlabel('Network Topology')
+    for i, network_type in enumerate(network_types):
+        sns.lineplot(x=range(num_rounds), y=[results[network_type]['total_hops'] / (round + 1) for round in range(num_rounds)], marker=markers[i], ax=axs[1], label=network_type)
+    axs[1].set_xlabel('Round')
     axs[1].set_ylabel('Average Total Hops')
     axs[1].set_title('Average Total Hops for Different Network Topologies')
 
-    axs[2].bar(network_types, base_station_reached_percentage, color=['red', 'green', 'blue', 'purple'])
-    axs[2].set_xlabel('Network Topology')
+    for i, network_type in enumerate(network_types):
+        sns.lineplot(x=range(num_rounds), y=[(results[network_type]['base_station_reached'] / (round + 1)) * 100 for round in range(num_rounds)], marker=markers[i], ax=axs[2], label=network_type)
+    axs[2].set_xlabel('Round')
     axs[2].set_ylabel('Base Station Reached Percentage')
     axs[2].set_title('Base Station Reached Percentage for Different Network Topologies')
 
-    axs[3].bar(network_types, avg_compromised_nodes, color=['red', 'green', 'blue', 'purple'])
-    axs[3].set_xlabel('Network Topology')
+    for i, network_type in enumerate(network_types):
+        sns.lineplot(x=range(num_rounds), y=[results[network_type]['compromised_nodes'] / (round + 1) for round in range(num_rounds)], marker=markers[i], ax=axs[3], label=network_type)
+    axs[3].set_xlabel('Round')
     axs[3].set_ylabel('Average Compromised Nodes')
     axs[3].set_title('Average Compromised Nodes for Different Network Topologies')
 
-    axs[4].bar(network_types, total_detections, color=['red', 'green', 'blue', 'purple'])
-    axs[4].set_xlabel('Network Topology')
+    for i, network_type in enumerate(network_types):
+        sns.lineplot(x=range(num_rounds), y=[results[network_type]['detections'] for _ in range(num_rounds)], marker=markers[i], ax=axs[4], label=network_type)
+    axs[4].set_xlabel('Round')
     axs[4].set_ylabel('Total Detections')
     axs[4].set_title('Total Detections for Different Network Topologies')
 

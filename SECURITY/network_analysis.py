@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import matplotlib.pyplot as plt
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 from intruder_attack_simulation import simulate_intruder_attack
 from energy_analysis import calculate_network_energy_usage
@@ -9,7 +10,6 @@ SENSOR_RADIUS = 10
 ENERGY_DETECTION = 0.1  # Energy cost for detection
 ENERGY_COMMUNICATION = 0.05  # Energy cost for communication
 NUM_SENSORS = 559
-NUM_ITERATIONS = 4
 
 def non_periodic_patterns_test(network, intruder_initial_position, base_station_position, network_type):
     path, _ = simulate_intruder_attack(network, intruder_initial_position, base_station_position, network_type)
@@ -70,11 +70,41 @@ def redundancy_and_backup_paths_test(network):
     multiple_paths = len(paths) > len(network)
     return multiple_paths
 
-def main():
+def plot_results(metrics, rounds):
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    # Average Hops
+    for network_type in metrics:
+        axes[0, 0].plot(rounds, metrics[network_type]['avg_hops'], label=network_type)
+    axes[0, 0].set_title('Average Hops')
+    axes[0, 0].set_xlabel('Rounds')
+    axes[0, 0].set_ylabel('Average Hops')
+    axes[0, 0].legend()
+
+    # Fault Tolerance
+    for network_type in metrics:
+        axes[0, 1].plot(rounds, metrics[network_type]['fault_tolerant'], label=network_type)
+    axes[0, 1].set_title('Fault Tolerance')
+    axes[0, 1].set_xlabel('Rounds')
+    axes[0, 1].set_ylabel('Fault Tolerance (1=True, 0=False)')
+    axes[0, 1].legend()
+
+    # Multiple Paths
+    for network_type in metrics:
+        axes[1, 0].plot(rounds, metrics[network_type]['multiple_paths'], label=network_type)
+    axes[1, 0].set_title('Multiple Paths')
+    axes[1, 0].set_xlabel('Rounds')
+    axes[1, 0].set_ylabel('Multiple Paths (1=True, 0=False)')
+    axes[1, 0].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+def main(num_rounds=5):
     random.seed()  # Ensure randomness in each simulation run
 
     # Generate networks
-    aperiodic_network = generate_aperiodic_network(SENSOR_RADIUS, NUM_SENSORS, NUM_ITERATIONS)
+    aperiodic_network = generate_aperiodic_network(SENSOR_RADIUS, NUM_SENSORS, num_rounds)
     hexagonal_network = generate_hexagonal_network(NUM_SENSORS, SENSOR_RADIUS)
     triangular_network = generate_triangular_network(NUM_SENSORS, SENSOR_RADIUS)
     square_network = generate_square_network(NUM_SENSORS, SENSOR_RADIUS)
@@ -90,28 +120,36 @@ def main():
     base_stations = [aperiodic_base_station, hexagonal_base_station, triangular_base_station, square_base_station]
 
     # Results storage
-    results = {network_type: {} for network_type in network_types}
+    metrics = {network_type: {'avg_hops': [], 'fault_tolerant': [], 'multiple_paths': []} for network_type in network_types}
+    rounds = list(range(1, num_rounds + 1))
 
-    for network_type, network, base_station in zip(network_types, networks, base_stations):
-        intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
+    for round_num in rounds:
+        for network_type, network, base_station in zip(network_types, networks, base_stations):
+            intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
 
-        # Non-periodic Patterns Test
-        coverage_map = non_periodic_patterns_test(network, intruder_initial_position, base_station, network_type)
-        results[network_type]['coverage_map'] = coverage_map
+            # Efficient Communication Test
+            avg_hops = efficient_communication_test(network, base_station)
+            metrics[network_type]['avg_hops'].append(avg_hops)
 
-        # Efficient Communication Test
-        avg_hops = efficient_communication_test(network, base_station)
-        results[network_type]['avg_hops'] = avg_hops
+            # Fault Tolerance Test
+            fault_tolerant = fault_tolerance_test(network)
+            metrics[network_type]['fault_tolerant'].append(int(fault_tolerant))
 
-        # Fault Tolerance Test
-        fault_tolerant = fault_tolerance_test(network)
-        results[network_type]['fault_tolerant'] = fault_tolerant
+            # Redundancy and Backup Paths Test
+            multiple_paths = redundancy_and_backup_paths_test(network)
+            metrics[network_type]['multiple_paths'].append(int(multiple_paths))
 
-        # Redundancy and Backup Paths Test
-        multiple_paths = redundancy_and_backup_paths_test(network)
-        results[network_type]['multiple_paths'] = multiple_paths
+        print(f"Round {round_num} completed.")
 
-    print(f"Results: {results}")
+    # Display metrics
+    for network_type in metrics:
+        print(f"{network_type} Network:")
+        print(f"  Average Hops: {metrics[network_type]['avg_hops']}")
+        print(f"  Fault Tolerance: {metrics[network_type]['fault_tolerant']}")
+        print(f"  Multiple Paths: {metrics[network_type]['multiple_paths']}")
+
+    # Plot results
+    plot_results(metrics, rounds)
 
 if __name__ == "__main__":
-    main()
+    main(num_rounds=5)
