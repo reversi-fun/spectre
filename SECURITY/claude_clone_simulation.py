@@ -2,21 +2,19 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import scienceplots
 import random
 import pandas as pd
-import scienceplots
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
+
+plt.style.use(['science', 'ieee'])
+plt.rcParams.update({'figure.dpi': '150'})
 
 # Parameters
 SENSOR_RADIUS = 10
 COMMUNICATION_RANGE = SENSOR_RADIUS * 2
 CLONE_PERCENTAGE = 0.01
 DETECTION_THRESHOLD = 0.1  # Probability threshold for detecting a cloned node
-
-# Using SciencePlots
-plt.style.use(['science', 'ieee'])
-plt.rcParams.update({'figure.dpi': '100'})  # Adjust DPI for plt.show()
 
 def generate_networks(sensor_radius, num_sensors):
     aperiodic_network = generate_aperiodic_network(sensor_radius, num_sensors, 3)
@@ -126,9 +124,6 @@ def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
 def plot_network_with_paths(network, paths, clone_positions, detected_clones, base_station_position, title):
-    sns.set_style("whitegrid")
-    sns.set_context("paper", font_scale=1.2)
-    
     fig, ax = plt.subplots(figsize=(10, 8))
     network = np.array(network)
     
@@ -155,13 +150,13 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
         plt.plot(path[:, 0], path[:, 1], 'r-', linewidth=1, alpha=0.5)
 
     plt.title(title, fontsize=16, fontweight='bold')
-    plt.xlabel('X Coordinate', fontsize=14)
-    plt.ylabel('Y Coordinate', fontsize=14)
+    plt.xlabel('Width', fontsize=14)
+    plt.ylabel('Height', fontsize=14)
     plt.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
     plt.show()
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=100):
+def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
     results = {network_type: {'detections': 0, 'paths': [], 'time_steps': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
@@ -197,9 +192,6 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=100):
     plot_metrics(results, num_rounds)
 
 def plot_metrics(results, num_rounds):
-    sns.set_style("whitegrid")
-    sns.set_context("paper", font_scale=1.2)
-    
     metrics = ['Avg Time Steps', 'Avg Total Hops', 'Base Station Reached %', 'Avg Compromised Nodes', 'Total Detections']
     data = []
     
@@ -214,16 +206,16 @@ def plot_metrics(results, num_rounds):
     
     df = pd.DataFrame(data)
     
-    # Plot each metric separately
     for metric in metrics:
-        plt.figure(figsize=(5, 6))
-        sns.lineplot(data=df[df['Metric'] == metric], x='Network Type', y='Value', hue='Network Type', marker='o', linewidth=2, markersize=8)
+        plt.figure(figsize=(10, 4))
+        subset = df[df['Metric'] == metric]
+        plt.plot(subset['Network Type'], subset['Value'], marker='o', linestyle='-', label=metric)
         plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds', fontsize=16, fontweight='bold')
         plt.xlabel('Network Topology', fontsize=14)
         plt.ylabel(metric, fontsize=14)
-        plt.legend(title='Network Type', title_fontsize='12', fontsize='10', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.legend(title='Metrics', title_fontsize='12', fontsize='10', bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
         plt.show()
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=100)
+    run_simulation(num_iterations=1, num_rounds=1000)
