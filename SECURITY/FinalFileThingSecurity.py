@@ -1,9 +1,10 @@
-# intruder_attack_simulation.py
+# File: intruder_attack_simulation.py
 
 import numpy as np
 import matplotlib.pyplot as plt
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 import random
+from scipy.spatial import distance_matrix
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -14,11 +15,21 @@ def simulate_intruder_attack(network, intruder_position, base_station_position, 
     time_steps = 0
     visited_nodes = set()
     is_aperiodic = network_type == 'aperiodic'
+    
     while not has_reached_base_station(intruder_position, base_station_position):
         visited_nodes.add(tuple(intruder_position))
-        intruder_position, step_time = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        intruder_position, step_time, pattern_found = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        
+        if np.linalg.norm(np.array(intruder_position) - np.array(path[-1])) > HOP_DISTANCE:
+            intruder_position = path[-1]  # Revert to the last valid position
+            intruder_position, step_time, pattern_found = traveling_salesman_step(network, intruder_position, visited_nodes)
+            if intruder_position is None:
+                print("Intruder could not make a valid hop. Ending simulation.")
+                break
+        
         path.append(intruder_position)
         time_steps += step_time
+
     return path, time_steps
 
 def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
@@ -27,11 +38,26 @@ def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
     for idx in sorted_indices:
         nearest_node = network[idx]
         if tuple(nearest_node) not in visited_nodes:
-            step_time = calculate_time_step(nearest_node, intruder_position, network, is_aperiodic)
-            return nearest_node, step_time
-    return intruder_position, 0
+            step_time = calculate_time_step(nearest_node, intruder_position, network)
+            pattern_found = detect_pattern(nearest_node, network)
+            return nearest_node, step_time, pattern_found
+    return intruder_position, 0, False
 
-def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
+def traveling_salesman_step(network, current_position, visited_nodes):
+    remaining_nodes = [node for node in network if tuple(node) not in visited_nodes]
+    if not remaining_nodes:
+        return None, 0, False
+    
+    distances = distance_matrix([current_position], remaining_nodes)
+    nearest_idx = np.argmin(distances)
+    nearest_node = remaining_nodes[nearest_idx]
+    
+    step_time = calculate_time_step(nearest_node, current_position, network)
+    pattern_found = detect_pattern(nearest_node, network)
+    
+    return nearest_node, step_time, pattern_found
+
+def calculate_time_step(nearest_node, current_node, network):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
@@ -55,8 +81,39 @@ def get_unique_angles_distances(current_node, network):
     
     return unique_angles, unique_distances
 
+def detect_pattern(current_node, network):
+    unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
+    return len(unique_angles) <= 3 and len(unique_distances) <= 3
+
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
+
+def plot_network_with_path(network, path, base_station_position, title):
+    fig, ax = plt.subplots()
+    network = np.array(network)
+    path = np.array(path)
+    
+    # Plot sensors and their ranges
+    for node in network:
+        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='blue', alpha=0.2)
+        ax.add_artist(sensor_circle)
+        plt.plot(node[0], node[1], 'bo', markersize=2)
+    
+    # Plot base station
+    plt.plot(base_station_position[0], base_station_position[1], 'go', markersize=10, label='Base Station')
+    
+    # Plot intruder path
+    for i in range(1, len(path)):
+        plt.plot(path[i-1:i+1, 0], path[i-1:i+1, 1], 'r-', linewidth=1)
+        plt.arrow(path[i-1][0], path[i-1][1], path[i][0]-path[i-1][0], path[i][1]-path[i-1][1], head_width=2, head_length=2, fc='r', ec='r')
+
+    plt.title(title)
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.legend()
+    plt.grid(True)
+    plt.axis('equal')
+    plt.show()
 
 def run_simulation(num_iterations=100):
     random.seed()  # Ensure randomness in each simulation run
@@ -82,12 +139,15 @@ def run_simulation(num_iterations=100):
     base_stations = [aperiodic_base_station, hexagonal_base_station, triangular_base_station, square_base_station]
     
     results = {network_type: [] for network_type in network_types}
+    paths = {network_type: [] for network_type in network_types}
     
     for i in range(num_iterations):
         for network_type, network, base_station in zip(network_types, networks, base_stations):
             intruder_initial_position = (random.uniform(-200, 200), random.uniform(-200, 200))
             path, time_steps = simulate_intruder_attack(network, intruder_initial_position, base_station, network_type)
             results[network_type].append(time_steps)
+            if i == 0:  # Save path for the first iteration
+                paths[network_type] = path
         print(f"Iteration {i + 1} completed.")
 
     # Calculate average time steps
@@ -95,6 +155,10 @@ def run_simulation(num_iterations=100):
 
     # Plot results
     plot_results(avg_time_steps)
+    
+    # Plot paths for the first round
+    for network_type, network, base_station in zip(network_types, networks, base_stations):
+        plot_network_with_path(network, paths[network_type], base_station, f'{network_type} Network - First Round Intruder Path')
 
 def plot_results(avg_time_steps):
     fig, ax = plt.subplots()
@@ -110,4 +174,4 @@ def plot_results(avg_time_steps):
     plt.show()
 
 if __name__ == "__main__":
-    run_simulation()
+    run_simulation(num_iterations=10)

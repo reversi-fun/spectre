@@ -1,9 +1,10 @@
-# intruder_attack_simulation.py
+# File: intruder_attack_simulation.py
 
 import numpy as np
 import matplotlib.pyplot as plt
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 import random
+from scipy.spatial import distance_matrix
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -14,11 +15,21 @@ def simulate_intruder_attack(network, intruder_position, base_station_position, 
     time_steps = 0
     visited_nodes = set()
     is_aperiodic = network_type == 'aperiodic'
+    
     while not has_reached_base_station(intruder_position, base_station_position):
         visited_nodes.add(tuple(intruder_position))
-        intruder_position, step_time = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        intruder_position, step_time, pattern_found = smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic)
+        
+        if np.linalg.norm(np.array(intruder_position) - np.array(path[-1])) > HOP_DISTANCE:
+            intruder_position = path[-1]  # Revert to the last valid position
+            intruder_position, step_time, pattern_found = traveling_salesman_step(network, intruder_position, visited_nodes)
+            if intruder_position is None:
+                print("Intruder could not make a valid hop. Ending simulation.")
+                break
+        
         path.append(intruder_position)
         time_steps += step_time
+
     return path, time_steps
 
 def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
@@ -27,11 +38,26 @@ def smart_random_walk(network, intruder_position, visited_nodes, is_aperiodic):
     for idx in sorted_indices:
         nearest_node = network[idx]
         if tuple(nearest_node) not in visited_nodes:
-            step_time = calculate_time_step(nearest_node, intruder_position, network, is_aperiodic)
-            return nearest_node, step_time
-    return intruder_position, 0
+            step_time = calculate_time_step(nearest_node, intruder_position, network)
+            pattern_found = detect_pattern(nearest_node, network)
+            return nearest_node, step_time, pattern_found
+    return intruder_position, 0, False
 
-def calculate_time_step(nearest_node, current_node, network, is_aperiodic):
+def traveling_salesman_step(network, current_position, visited_nodes):
+    remaining_nodes = [node for node in network if tuple(node) not in visited_nodes]
+    if not remaining_nodes:
+        return None, 0, False
+    
+    distances = distance_matrix([current_position], remaining_nodes)
+    nearest_idx = np.argmin(distances)
+    nearest_node = remaining_nodes[nearest_idx]
+    
+    step_time = calculate_time_step(nearest_node, current_position, network)
+    pattern_found = detect_pattern(nearest_node, network)
+    
+    return nearest_node, step_time, pattern_found
+
+def calculate_time_step(nearest_node, current_node, network):
     distance = np.linalg.norm(np.array(nearest_node) - np.array(current_node))
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     complexity_factor = len(unique_angles) + len(unique_distances)
@@ -54,6 +80,10 @@ def get_unique_angles_distances(current_node, network):
         unique_angles.add(angle)
     
     return unique_angles, unique_distances
+
+def detect_pattern(current_node, network):
+    unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
+    return len(unique_angles) <= 3 and len(unique_distances) <= 3
 
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
