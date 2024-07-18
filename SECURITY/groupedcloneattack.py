@@ -163,9 +163,8 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
     plt.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
     plt.show()
-    plt.close()  # Close the figure to free up memory
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
+def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
     results = {network_type: {'detections': 0, 'paths': [], 'time_steps': [], 'total_hops': [], 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
@@ -173,7 +172,6 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
     for round_idx in range(num_rounds):
         print(f"Round {round_idx + 1}")
         round_seed = round_idx  # Use round index as the seed for consistency
-        random.seed(round_seed)  # Set the random seed for reproducibility
         base_station_position = tuple(np.mean(networks['Aperiodic'], axis=0))
         distance = random.uniform(10, 50)  # Example distance range
         angle = random.uniform(0, 360)  # Random angle for each round
@@ -181,7 +179,6 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
         clone_positions_per_network = {network_type: get_cloned_positions(base_station_position, int(num_sensors * CLONE_PERCENTAGE), distance, angle) for network_type, network in networks.items()}
         
         for network_type, network in networks.items():
-            print(f"Processing {network_type} network...")  # Add this line for debugging
             clone_positions = clone_positions_per_network[network_type]
             for iteration in range(num_iterations):
                 detections, paths, time_steps, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, base_station_position)
@@ -191,11 +188,10 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
                 results[network_type]['total_hops'].append(total_hops)
                 results[network_type]['detected_clones'].update(detected_clones)
                 results[network_type]['compromised_nodes'] += compromised_nodes
-                if paths and has_reached_base_station(paths[-1][-1], base_station_position):
+                if has_reached_base_station(paths[-1][-1], base_station_position):
                     results[network_type]['base_station_reached'] += 1
-            
-            plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], base_station_position, f'{network_type} Network')
-            plt.close()  # Close the figure to free up memory
+            if round_idx == 0 and iteration == 0:
+                plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], base_station_position, f'{network_type} Network')
     
     for network_type in results.keys():
         print(f"{network_type} Network: {results[network_type]['detections']} detections, {results[network_type]['base_station_reached']} base stations reached out of {num_iterations * num_rounds} total rounds")
@@ -223,19 +219,18 @@ def plot_metrics(results, num_rounds):
     
     df = pd.DataFrame(data)
     
-    markers = ['o', '^', 's', 'd']
     for metric in metrics:
         plt.figure(figsize=(12, 6))
         subset = df[df['Metric'] == metric]
-        for idx, network_type in enumerate(results.keys()):
+        for network_type in results.keys():
             network_subset = subset[subset['Network Type'] == network_type]
-            plt.plot(network_subset['Round'], network_subset['Value'], marker=markers[idx], label=network_type)
+            plt.plot(network_subset['Round'], network_subset['Value'], label=network_type)
         plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds', fontsize=16, fontweight='bold')
         plt.xlabel('Rounds', fontsize=14)
         plt.ylabel(metric, fontsize=14)
-        plt.legend(title='Network Type', title_fontsize='12', fontsize='10', bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.legend(title='Metrics', title_fontsize='12', fontsize='10', bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
         plt.show()
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=10)
+    run_simulation(num_iterations=1, num_rounds=1000)

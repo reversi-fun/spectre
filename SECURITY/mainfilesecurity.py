@@ -1,5 +1,3 @@
-# File: clone_attack_detection_simulation.py
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scienceplots
@@ -37,7 +35,7 @@ def get_cloned_positions(network, seed, clone_percentage):
 def simulate_clone_attack(network, clone_positions, base_station_position):
     detections = 0
     paths = []
-    intrusion_effort_metric = 0
+    total_intrusion_effort = 0
     total_hops = 0
     detected_clones = set()
     compromised_nodes = set(clone_positions)
@@ -61,7 +59,7 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
                 clone_position = next_position
                 compromised_nodes.add(tuple(clone_position))
                 path.append(clone_position)
-                intrusion_effort_metric += effort_of_intrusion
+                total_intrusion_effort += effort_of_intrusion
                 total_hops += 1
                 if random.random() < DETECTION_THRESHOLD:
                     detected_clones.add(tuple(clone_position))
@@ -75,7 +73,7 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
         
         active_clones = new_active_clones
     
-    return detections, paths, intrusion_effort_metric, total_hops, detected_clones, len(compromised_nodes)
+    return detections, paths, total_intrusion_effort, total_hops, detected_clones, len(compromised_nodes)
 
 def smart_random_walk(network, intruder_position, visited_nodes):
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
@@ -123,7 +121,7 @@ def detect_pattern(current_node, network):
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
-def plot_network_with_paths(network, paths, clone_positions, detected_clones, base_station_position, title):
+def plot_network_with_paths(network, paths, clone_positions, detected_clones, base_station_position, title, save_fig=False):
     fig, ax = plt.subplots(figsize=(10, 8))
     network = np.array(network)
     
@@ -154,12 +152,16 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
     plt.ylabel('Height', fontsize=14)
     plt.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
+
+    if save_fig:
+        plt.savefig(f'figures/{title}.png', dpi=300)
+
     plt.show()
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
+def run_simulation(num_sensors=71, num_iterations=1, num_rounds=1, save_fig=False):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
-    results = {network_type: {'detections': 0, 'paths': [], 'intrusion_effort_metric': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
+    results = {network_type: {'detections': 0, 'paths': [], 'total_intrusion_effort': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
     
     for round_idx in range(num_rounds):
         print(f"Round {round_idx + 1}")
@@ -169,54 +171,54 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
         for network_type, network in networks.items():
             clone_positions = clone_positions_per_network[network_type]
             for iteration in range(num_iterations):
-                detections, paths, intrusion_effort_metric, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
+                detections, paths, total_intrusion_effort, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
                 results[network_type]['detections'] += detections
                 results[network_type]['paths'].extend(paths)
-                results[network_type]['intrusion_effort_metric'] += intrusion_effort_metric
+                results[network_type]['total_intrusion_effort'] += total_intrusion_effort
                 results[network_type]['total_hops'] += total_hops
                 results[network_type]['detected_clones'].update(detected_clones)
                 results[network_type]['compromised_nodes'] += compromised_nodes
                 if has_reached_base_station(paths[-1][-1], tuple(np.mean(network, axis=0))):
                     results[network_type]['base_station_reached'] += 1
             if round_idx == 0 and iteration == 0:
-                plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], tuple(np.mean(network, axis=0)), f'{network_type} Network')
+                plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], tuple(np.mean(network, axis=0)), f'{network_type} Network - {num_sensors} Sensors', save_fig)
     
     for network_type in results.keys():
         print(f"{network_type} Network: {results[network_type]['detections']} detections, {results[network_type]['base_station_reached']} base stations reached out of {num_iterations * num_rounds} total rounds")
-        print(f"Average Intrusion Effort: {results[network_type]['intrusion_effort_metric'] / (num_iterations * num_rounds)}")
+        print(f"Average total intrusion effort: {results[network_type]['total_intrusion_effort'] / (num_iterations * num_rounds)}")
         print(f"Average total hops: {results[network_type]['total_hops'] / (num_iterations * num_rounds)}")
         print(f"Total detected cloned nodes: {len(results[network_type]['detected_clones'])}")
         print(f"Total compromised nodes: {results[network_type]['compromised_nodes'] / (num_iterations * num_rounds)}")
         print(f"Base station reached percentage: {(results[network_type]['base_station_reached'] / (num_iterations * num_rounds)) * 100}%")
     
-    plot_metrics(results, num_rounds)
+    plot_metrics(results, num_rounds, num_sensors, save_fig)
 
-def plot_metrics(results, num_rounds):
-    metrics = ['Average Intrusion Effort', 'Average Total Hops', 'Base Station Reached %', 'Average Compromised Nodes', 'Total Detections']
+def plot_metrics(results, num_rounds, num_sensors, save_fig=False):
+    metrics = ['Total Intrusion Effort', 'Total Hops', 'Base Station Reached %', 'Compromised Nodes', 'Detections']
     data = []
-    
+
     for network_type, network_results in results.items():
-        data.extend([
-            {'Network Type': network_type, 'Metric': 'Average Intrusion Effort', 'Value': network_results['intrusion_effort_metric'] / num_rounds},
-            {'Network Type': network_type, 'Metric': 'Average Total Hops', 'Value': network_results['total_hops'] / num_rounds},
-            {'Network Type': network_type, 'Metric': 'Base Station Reached %', 'Value': (network_results['base_station_reached'] / num_rounds) * 100},
-            {'Network Type': network_type, 'Metric': 'Average Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds},
-            {'Network Type': network_type, 'Metric': 'Total Detections', 'Value': network_results['detections']}
-        ])
+        data.append({'Network Type': network_type, 'Metric': 'Total Intrusion Effort', 'Value': network_results['total_intrusion_effort'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Total Hops', 'Value': network_results['total_hops'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Base Station Reached %', 'Value': (network_results['base_station_reached'] / num_rounds) * 100})
+        data.append({'Network Type': network_type, 'Metric': 'Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Detections', 'Value': network_results['detections']})
     
     df = pd.DataFrame(data)
+
+    colors = ['tab:red', 'tab:blue', 'tab:green', 'tab:orange', 'tab:purple']
     
-    for metric in metrics:
+    for metric, color in zip(metrics, colors):
         plt.figure(figsize=(10, 4))
         subset = df[df['Metric'] == metric]
-        plt.plot(subset['Network Type'], subset['Value'], marker='o', linestyle='-', label=metric)
-        plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds', fontsize=16, fontweight='bold')
+        plt.plot(subset['Network Type'], subset['Value'], marker='o', linestyle='-', color=color, label=metric)
+        plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds: {int(CLONE_PERCENTAGE*100)}\% Clones, {num_sensors} Sensors', fontsize=16, fontweight='bold')
         plt.xlabel('Network Topology', fontsize=14)
         plt.ylabel(metric, fontsize=14)
         plt.tight_layout()
         if save_fig:
-            plt.savefig(f'figures/{metric}_for_Each_Topology_Over_{num_rounds}_Rounds.png', dpi=300)
+            plt.savefig(f'figures/{metric}_for_Each_Topology_Over_{num_rounds}_Rounds_Clone_Percentage_{int(CLONE_PERCENTAGE*100)}_Sensors_{num_sensors}.png', dpi=300)
         plt.show()
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=10)
+    run_simulation(num_iterations=1, num_rounds=1, save_fig=True)
