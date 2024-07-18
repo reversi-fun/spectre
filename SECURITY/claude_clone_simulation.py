@@ -8,12 +8,12 @@ import pandas as pd
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 
 plt.style.use(['science', 'ieee'])
-plt.rcParams.update({'figure.dpi': '150'})
+plt.rcParams.update({'figure.dpi': '100'})
 
 # Parameters
 SENSOR_RADIUS = 10
 COMMUNICATION_RANGE = SENSOR_RADIUS * 2
-CLONE_PERCENTAGE = 0.01
+CLONE_PERCENTAGE = 0.1
 DETECTION_THRESHOLD = 0.1  # Probability threshold for detecting a cloned node
 
 def generate_networks(sensor_radius, num_sensors):
@@ -37,7 +37,7 @@ def get_cloned_positions(network, seed, clone_percentage):
 def simulate_clone_attack(network, clone_positions, base_station_position):
     detections = 0
     paths = []
-    time_steps = 0
+    intrusion_effort_metric = 0
     total_hops = 0
     detected_clones = set()
     compromised_nodes = set(clone_positions)
@@ -61,7 +61,7 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
                 clone_position = next_position
                 compromised_nodes.add(tuple(clone_position))
                 path.append(clone_position)
-                time_steps += step_time
+                intrusion_effort_metric += step_time
                 total_hops += 1
                 if random.random() < DETECTION_THRESHOLD:
                     detected_clones.add(tuple(clone_position))
@@ -75,7 +75,7 @@ def simulate_clone_attack(network, clone_positions, base_station_position):
         
         active_clones = new_active_clones
     
-    return detections, paths, time_steps, total_hops, detected_clones, len(compromised_nodes)
+    return detections, paths, intrusion_effort_metric, total_hops, detected_clones, len(compromised_nodes)
 
 def smart_random_walk(network, intruder_position, visited_nodes):
     distances = np.linalg.norm(np.array(network) - np.array(intruder_position), axis=1)
@@ -156,10 +156,10 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
     plt.tight_layout()
     plt.show()
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000):
+def run_simulation(num_sensors=559, num_iterations=1, num_rounds=100):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
-    results = {network_type: {'detections': 0, 'paths': [], 'time_steps': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
+    results = {network_type: {'detections': 0, 'paths': [], 'intrusion_effort_metric': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
     
     for round_idx in range(num_rounds):
         print(f"Round {round_idx + 1}")
@@ -169,10 +169,10 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000):
         for network_type, network in networks.items():
             clone_positions = clone_positions_per_network[network_type]
             for iteration in range(num_iterations):
-                detections, paths, time_steps, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
+                detections, paths, intrusion_effort_metric, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
                 results[network_type]['detections'] += detections
                 results[network_type]['paths'].extend(paths)
-                results[network_type]['time_steps'] += time_steps
+                results[network_type]['intrusion_effort_metric'] += intrusion_effort_metric
                 results[network_type]['total_hops'] += total_hops
                 results[network_type]['detected_clones'].update(detected_clones)
                 results[network_type]['compromised_nodes'] += compromised_nodes
@@ -183,7 +183,7 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000):
     
     for network_type in results.keys():
         print(f"{network_type} Network: {results[network_type]['detections']} detections, {results[network_type]['base_station_reached']} base stations reached out of {num_iterations * num_rounds} total rounds")
-        print(f"Average time steps: {results[network_type]['time_steps'] / (num_iterations * num_rounds)}")
+        print(f"Average time steps: {results[network_type]['intrusion_effort_metric'] / (num_iterations * num_rounds)}")
         print(f"Average total hops: {results[network_type]['total_hops'] / (num_iterations * num_rounds)}")
         print(f"Total detected cloned nodes: {len(results[network_type]['detected_clones'])}")
         print(f"Total compromised nodes: {results[network_type]['compromised_nodes'] / (num_iterations * num_rounds)}")
@@ -197,7 +197,7 @@ def plot_metrics(results, num_rounds):
     
     for network_type, network_results in results.items():
         data.extend([
-            {'Network Type': network_type, 'Metric': 'Avg Time Steps', 'Value': network_results['time_steps'] / num_rounds},
+            {'Network Type': network_type, 'Metric': 'Avg Time Steps', 'Value': network_results['intrusion_effort_metric'] / num_rounds},
             {'Network Type': network_type, 'Metric': 'Avg Total Hops', 'Value': network_results['total_hops'] / num_rounds},
             {'Network Type': network_type, 'Metric': 'Base Station Reached %', 'Value': (network_results['base_station_reached'] / num_rounds) * 100},
             {'Network Type': network_type, 'Metric': 'Avg Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds},
@@ -213,9 +213,8 @@ def plot_metrics(results, num_rounds):
         plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds', fontsize=16, fontweight='bold')
         plt.xlabel('Network Topology', fontsize=14)
         plt.ylabel(metric, fontsize=14)
-        plt.legend(title='Metrics', title_fontsize='12', fontsize='10', bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
         plt.show()
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=1000)
+    run_simulation(num_iterations=1, num_rounds=100)

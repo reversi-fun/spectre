@@ -4,7 +4,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
-from intruder_attack_simulation import simulate_intruder_attack
+from claude_clone_simulation import simulate_clone_attack
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -24,7 +24,7 @@ def calculate_network_energy_usage(network, intruder_path):
     return total_energy_consumption
 
 def simulate_network_energy_tradeoffs(network, intruder_position, base_station_position, network_type):
-    path, _ = simulate_intruder_attack(network, intruder_position, base_station_position, network_type)
+    path, _ = simulate_clone_attack(network, intruder_position, base_station_position, network_type)
     energy_usage = calculate_network_energy_usage(network, path)
     return energy_usage
 
