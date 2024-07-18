@@ -202,7 +202,7 @@ def plot_metrics(results, num_rounds, num_sensors, save_fig=False):
         data.append({'Network Type': network_type, 'Metric': 'Total Hops', 'Value': network_results['total_hops'] / num_rounds})
         data.append({'Network Type': network_type, 'Metric': 'Base Station Reached %', 'Value': (network_results['base_station_reached'] / num_rounds) * 100})
         data.append({'Network Type': network_type, 'Metric': 'Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Detections', 'Value': network_results['detections']})
+        data.append({'Network Type': network_type, 'Metric': 'Total Detections', 'Value': network_results['detections']})
     
     df = pd.DataFrame(data)
 

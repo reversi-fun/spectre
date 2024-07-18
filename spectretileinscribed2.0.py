@@ -4,10 +4,13 @@ from matplotlib.patches import Polygon as mplPolygon, Circle
 from matplotlib.colors import ListedColormap
 from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
+import scienceplots
+
+plt.style.use(['science', 'ieee'])
+plt.rcParams.update({'figure.dpi': 300})
 
 # Parameters
-N_ITERATIONS = 1
-GRID_RESOLUTION = 1  # Resolution of the coverage grid
+N_ITERATIONS = 2
 DEFAULT_SENSOR_RADIUS = 10  # Default sensor radius
 
 def calculate_sensor_radius(tile_points):
@@ -35,9 +38,15 @@ def place_sensors_inscribed(tiles, scaling_factor):
     tiles["Delta"].forEachTile(add_sensor_points)
     return sensor_positions
 
-def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
-    x_coords = np.arange(-200, 200, grid_resolution)
-    y_coords = np.arange(-200, 200, grid_resolution)
+def calculate_coverage(sensor_positions, sensor_radius):
+    x_min = min(sensor[0] for sensor in sensor_positions) - sensor_radius
+    x_max = max(sensor[0] for sensor in sensor_positions) + sensor_radius
+    y_min = min(sensor[1] for sensor in sensor_positions) - sensor_radius
+    y_max = max(sensor[1] for sensor in sensor_positions) + sensor_radius
+    
+    grid_resolution = sensor_radius / 10  # Auto-detecting the grid resolution
+    x_coords = np.arange(x_min, x_max, grid_resolution)
+    y_coords = np.arange(y_min, y_max, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
     
     for sensor in sensor_positions:
@@ -49,7 +58,7 @@ def calculate_coverage(sensor_positions, sensor_radius, grid_resolution):
     return x_coords, y_coords, coverage_map
 
 def calculate_metrics(sensor_positions, coverage_map, sensor_radius):
-    covered_area = np.sum(coverage_map > 0) * GRID_RESOLUTION**2
+    covered_area = np.sum(coverage_map > 0) * (sensor_radius / 10)**2
     sensor_density = len(sensor_positions) / covered_area
     
     overlap_sum = np.sum(coverage_map) - np.sum(coverage_map > 0)
@@ -62,8 +71,8 @@ def calculate_total_energy_consumption(sensor_positions):
     ENERGY_CONSUMPTION_RATE = 1  # Example value
     return len(sensor_positions) * ENERGY_CONSUMPTION_RATE
 
-def calculate_rate_of_overlap(sensor_radius, tile_area):
-    circle_area = np.pi * sensor_radius**2
+def calculate_rate_of_overlap(tile_area, circle_area):
+    """Calculate the fixed rate of overlap for the inscribed tile."""
     rate_of_overlap = (circle_area - tile_area) / circle_area
     return rate_of_overlap
 
@@ -80,6 +89,7 @@ def plot_coverage_map(x_coords, y_coords, coverage_map):
     plt.title("Coverage Map")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
+    plt.savefig("coverage_map.png", dpi=300)
     plt.show()
 
 def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
@@ -114,7 +124,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
     plt.title("Spectre Tile with Sensors Inscribed for Coverage")
-    plt.savefig("spectre_with_sensors_inscribed_coverage.png")
+    plt.savefig("spectre_with_sensors_inscribed_coverage.png", dpi=300)
     plt.show()
 
 # Generate spectre tiles
@@ -134,16 +144,20 @@ scaling_factor = sensor_radius / DEFAULT_SENSOR_RADIUS
 sensor_positions = place_sensors_inscribed(tiles, scaling_factor)
 
 # Calculate and plot the coverage map
-x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius, GRID_RESOLUTION)
+x_coords, y_coords, coverage_map = calculate_coverage(sensor_positions, sensor_radius)
 plot_coverage_map(x_coords, y_coords, coverage_map)
 
 # Calculate metrics
+tile_area = calculate_spectre_area()
+circle_area = np.pi * DEFAULT_SENSOR_RADIUS**2
+fixed_rate_of_overlap = calculate_rate_of_overlap(tile_area, circle_area)
+
 sensor_density, rate_of_overlap, coverage_quality = calculate_metrics(sensor_positions, coverage_map, sensor_radius)
 total_energy_consumption = calculate_total_energy_consumption(sensor_positions)
 
 # Print metrics in terms of sensing radius r
 print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
-print(f"Rate of overlap: {rate_of_overlap:.6f}")
+print(f"Rate of overlap: {fixed_rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
 

@@ -1,7 +1,0 @@
-Total number of sensors: 559
-Aperiodic Network Path Length: 175 Time Steps: 478.43801773162346 Time per Hop: 2.733931529894991
-Hexagonal Network Path Length: 131 Time Steps: 230.992977614406 Time per Hop: 1.7633051726290534
-Triangular Network Path Length: 277 Time Steps: 443.420695604925 Time per Hop: 1.6007967350358303
-Square Network Path Length: 116 Time Steps: 115.62289030328044 Time per Hop: 0.9967490543386245
-
-4.1067761806981515
