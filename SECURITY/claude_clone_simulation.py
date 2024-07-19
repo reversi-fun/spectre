@@ -115,8 +115,8 @@ def get_unique_angles_distances(current_node, network):
 def detect_pattern(current_node, network):
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     
-    max_angles = 6
-    max_distances = 2
+    max_angles = 12
+    max_distances = 6
     
     return len(unique_angles) <= max_angles and len(unique_distances) <= max_distances
 

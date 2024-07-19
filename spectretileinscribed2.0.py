@@ -58,7 +58,7 @@ def calculate_coverage(sensor_positions, sensor_radius):
     return x_coords, y_coords, coverage_map
 
 def calculate_metrics(sensor_positions, coverage_map, sensor_radius):
-    covered_area = np.sum(coverage_map > 0) * (sensor_radius / 10)**2
+    covered_area = np.sum(coverage_map > 0)
     sensor_density = len(sensor_positions) / covered_area
     
     overlap_sum = np.sum(coverage_map) - np.sum(coverage_map > 0)
@@ -89,7 +89,7 @@ def plot_coverage_map(x_coords, y_coords, coverage_map):
     plt.title("Coverage Map")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
-    plt.savefig("coverage_map_highres.png", dpi=300)
+    plt.savefig("coverage_map_highres_2.png", dpi=300)
     plt.show()
 
 def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
@@ -124,7 +124,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
     plt.title("Spectre Tile with Sensors Inscribed for Coverage")
-    plt.savefig("spectre_with_sensors_inscribed_coverage_highres.png", dpi=300)
+    plt.savefig("spectre_with_sensors_inscribed_coverage_highres_2.png", dpi=300)
     plt.show()
 
 # Generate spectre tiles
