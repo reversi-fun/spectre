@@ -160,7 +160,7 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
 
     plt.show()
 
-def run_simulation(num_sensors=71, num_iterations=1, num_rounds=1000, save_fig=False):
+def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000, save_fig=False):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
     results = {network_type: {'detections': 0, 'paths': [], 'total_intrusion_effort': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
