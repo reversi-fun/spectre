@@ -6,12 +6,12 @@ import pandas as pd
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 
 plt.style.use(['science', 'ieee', 'high-vis'])
-plt.rcParams.update({'figure.dpi': '300'})
+plt.rcParams.update({'figure.dpi': 600})
 
 # Parameters
 SENSOR_RADIUS = 10
 COMMUNICATION_RANGE = SENSOR_RADIUS * 2
-CLONE_PERCENTAGE = 0.01
+CLONE_PERCENTAGE = 0.05
 DETECTION_THRESHOLD = 0.1  # Probability threshold for detecting a cloned node
 
 def generate_networks(sensor_radius, num_sensors):
@@ -121,47 +121,10 @@ def detect_pattern(current_node, network):
 def has_reached_base_station(position, base_station_position):
     return np.linalg.norm(np.array(position) - np.array(base_station_position)) <= SENSOR_RADIUS
 
-def plot_network_with_paths(network, paths, clone_positions, detected_clones, base_station_position, title, save_fig=False):
-    fig, ax = plt.subplots(figsize=(10, 8))
-    network = np.array(network)
-    
-    # Plot sensors and their ranges
-    for node in network:
-        sensor_circle = plt.Circle(node, SENSOR_RADIUS, color='blue', alpha=0.2)
-        ax.add_artist(sensor_circle)
-        plt.plot(node[0], node[1], 'bo', markersize=2, label='Uncompromised Nodes' if 'Uncompromised Nodes' not in plt.gca().get_legend_handles_labels()[1] else "")
-    
-    # Plot base station
-    plt.plot(base_station_position[0], base_station_position[1], 'go', markersize=10, label='Base Station')
-    
-    # Plot cloned nodes
-    for pos in clone_positions:
-        plt.plot(pos[0], pos[1], 'ro', markersize=5, label='Cloned Nodes' if 'Cloned Nodes' not in plt.gca().get_legend_handles_labels()[1] else "")
-    
-    # Plot detected cloned nodes
-    for pos in detected_clones:
-        plt.plot(pos[0], pos[1], 'yo', markersize=5, label='Detected Cloned Nodes' if 'Detected Cloned Nodes' not in plt.gca().get_legend_handles_labels()[1] else "")
-    
-    # Plot paths
-    for path in paths:
-        path = np.array(path)
-        plt.plot(path[:, 0], path[:, 1], 'r-', linewidth=1, alpha=0.5)
-
-    plt.title(title, fontsize=16, fontweight='bold')
-    plt.xlabel('Width', fontsize=14)
-    plt.ylabel('Height', fontsize=14)
-    plt.legend(fontsize=10, loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.tight_layout()
-
-    if save_fig:
-        plt.savefig(f'figures/{title}.png', dpi=300)
-
-    plt.show()
-
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000, save_fig=False):
+def run_simulation(num_sensors=71, num_iterations=1, num_rounds=20, save_fig=True):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
-    results = {network_type: {'detections': 0, 'paths': [], 'total_intrusion_effort': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
+    results = {network_type: {'detections': [], 'total_intrusion_effort': [], 'total_hops': [], 'base_station_reached': [], 'compromised_nodes': []} for network_type in networks.keys()}
     
     for round_idx in range(num_rounds):
         print(f"Round {round_idx + 1}")
@@ -170,55 +133,56 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000, save_fig=
         
         for network_type, network in networks.items():
             clone_positions = clone_positions_per_network[network_type]
-            for iteration in range(num_iterations):
-                detections, paths, total_intrusion_effort, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
-                results[network_type]['detections'] += detections
-                results[network_type]['paths'].extend(paths)
-                results[network_type]['total_intrusion_effort'] += total_intrusion_effort
-                results[network_type]['total_hops'] += total_hops
-                results[network_type]['detected_clones'].update(detected_clones)
-                results[network_type]['compromised_nodes'] += compromised_nodes
-                if has_reached_base_station(paths[-1][-1], tuple(np.mean(network, axis=0))):
-                    results[network_type]['base_station_reached'] += 1
-            if round_idx == 0 and iteration == 0:
-                plot_network_with_paths(network, results[network_type]['paths'], clone_positions, results[network_type]['detected_clones'], tuple(np.mean(network, axis=0)), f'{network_type} Network - {num_sensors} Sensors', save_fig)
-    
-    for network_type in results.keys():
-        print(f"{network_type} Network: {results[network_type]['detections']} detections, {results[network_type]['base_station_reached']} base stations reached out of {num_iterations * num_rounds} total rounds")
-        print(f"Average total intrusion effort: {results[network_type]['total_intrusion_effort'] / (num_iterations * num_rounds)}")
-        print(f"Average total hops: {results[network_type]['total_hops'] / (num_iterations * num_rounds)}")
-        print(f"Total detected cloned nodes: {len(results[network_type]['detected_clones'])}")
-        print(f"Total compromised nodes: {results[network_type]['compromised_nodes'] / (num_iterations * num_rounds)}")
-        print(f"Base station reached percentage: {(results[network_type]['base_station_reached'] / (num_iterations * num_rounds)) * 100}%")
+            detections, paths, total_intrusion_effort, total_hops, detected_clones, compromised_nodes = simulate_clone_attack(network, clone_positions, tuple(np.mean(network, axis=0)))
+            results[network_type]['detections'].append(detections)
+            results[network_type]['total_intrusion_effort'].append(total_intrusion_effort)
+            results[network_type]['total_hops'].append(total_hops)
+            results[network_type]['compromised_nodes'].append(compromised_nodes)
+            results[network_type]['base_station_reached'].append(1 if has_reached_base_station(paths[-1][-1], tuple(np.mean(network, axis=0))) else 0)
     
     plot_metrics(results, num_rounds, num_sensors, save_fig)
 
 def plot_metrics(results, num_rounds, num_sensors, save_fig=False):
-    metrics = ['Total Intrusion Effort', 'Total Hops', 'Base Station Reached Percentage', 'Compromised Nodes', 'Total Detections']
-    data = []
-
-    for network_type, network_results in results.items():
-        data.append({'Network Type': network_type, 'Metric': 'Total Intrusion Effort', 'Value': network_results['total_intrusion_effort'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Total Hops', 'Value': network_results['total_hops'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Base Station Reached Percentage', 'Value': (network_results['base_station_reached'] / num_rounds) * 100})
-        data.append({'Network Type': network_type, 'Metric': 'Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Total Detections', 'Value': network_results['detections']})
-    
-    df = pd.DataFrame(data)
-
+    metrics = ['Total Intrusion Effort', 'Total Hops', 'Base Station Reached %', 'Compromised Nodes', 'Detections']
     colors = ['tab:red', 'tab:blue', 'tab:green', 'tab:orange', 'tab:purple']
+    network_types = list(results.keys())
     
+    # Plot each metric as a line plot with box plots for rounds
     for metric, color in zip(metrics, colors):
-        plt.figure(figsize=(10, 4))
-        subset = df[df['Metric'] == metric]
-        plt.plot(subset['Network Type'], subset['Value'], marker='o', linestyle='-', color=color, label=metric)
-        plt.title(f'{metric} for Each Topology Over {num_rounds} Rounds: {int(CLONE_PERCENTAGE*100)}\% Clones, {num_sensors} Sensors', fontsize=16, fontweight='bold')
-        plt.xlabel('Network Topology', fontsize=14)
+        plt.figure(figsize=(10, 6))
+        
+        for idx, network_type in enumerate(network_types):
+            metric_data = results[network_type][metric.lower().replace(" ", "_")]
+            plt.plot(range(1, num_rounds + 1), metric_data, label=network_type, marker='o', linestyle='-', color=colors[idx])
+        
+        plt.title(f'{metric} vs. Number of Rounds', fontsize=16, fontweight='bold')
+        plt.xlabel('Number of Rounds', fontsize=14)
         plt.ylabel(metric, fontsize=14)
-        plt.tight_layout()
+        plt.legend(title='Network Type', fontsize=12)
+        plt.grid(True)
+        
         if save_fig:
-            plt.savefig(f'figures/{metric}_for_Each_Topology_Over_{num_rounds}_Rounds_Clone_Percentage_{int(CLONE_PERCENTAGE*100)}_Sensors_{num_sensors}.png', dpi=300)
+            plt.savefig(f'figures/{metric.replace(" ", "_")}_vs_Number_of_Rounds.png', dpi=600)
         plt.show()
-
+        
+        # Box plot for the rounds
+        plt.figure(figsize=(10, 6))
+        boxplot_data = [results[network_type][metric.lower().replace(" ", "_")] for network_type in network_types]
+        positions = np.arange(1, num_rounds + 1)
+        
+        bplot = plt.boxplot(boxplot_data, positions=positions, widths=0.6, patch_artist=True)
+        
+        for patch, color in zip(bplot['boxes'], colors):
+            patch.set_facecolor(color)
+        
+        plt.title(f'{metric} Distribution Across Rounds', fontsize=16, fontweight='bold')
+        plt.xlabel('Number of Rounds', fontsize=14)
+        plt.ylabel(metric, fontsize=14)
+        plt.grid(True)
+        
+        if save_fig:
+            plt.savefig(f'figures/{metric.replace(" ", "_")}_Distribution_Across_Rounds.png', dpi=600)
+        plt.show()
+        
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=1000, save_fig=True)
+    run_simulation(num_iterations=1, num_rounds=20, save_fig=True)

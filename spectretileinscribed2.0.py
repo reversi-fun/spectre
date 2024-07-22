@@ -10,11 +10,10 @@ plt.style.use(['science', 'ieee'])
 plt.rcParams.update({'figure.dpi': 300})
 
 # Parameters
-N_ITERATIONS = 2
+N_ITERATIONS = 3
 DEFAULT_SENSOR_RADIUS = 10  # Default sensor radius
 
 def calculate_sensor_radius(tile_points):
-    """Calculate the sensor radius to inscribe the spectre monotile within a circle."""
     longest_distance = max(np.linalg.norm(pt - np.mean(tile_points, axis=0)) for pt in tile_points)
     return longest_distance
 
@@ -29,7 +28,6 @@ def place_sensors_inscribed(tiles, scaling_factor):
     
     def add_sensor_points(transformation, label):
         nonlocal sensor_positions
-        # Apply the scaling factor to the transformation matrix
         scaled_transformation = transformation @ np.diag([scaling_factor, scaling_factor, 1])
         tile_points = [transPt(scaled_transformation, pt) for pt in SPECTRE_POINTS]
         centroid = np.mean(tile_points, axis=0)
@@ -44,7 +42,7 @@ def calculate_coverage(sensor_positions, sensor_radius):
     y_min = min(sensor[1] for sensor in sensor_positions) - sensor_radius
     y_max = max(sensor[1] for sensor in sensor_positions) + sensor_radius
     
-    grid_resolution = sensor_radius / 10  # Auto-detecting the grid resolution
+    grid_resolution = sensor_radius / 10
     x_coords = np.arange(x_min, x_max, grid_resolution)
     y_coords = np.arange(y_min, y_max, grid_resolution)
     coverage_map = np.zeros((len(x_coords), len(y_coords)))
@@ -58,23 +56,20 @@ def calculate_coverage(sensor_positions, sensor_radius):
     return x_coords, y_coords, coverage_map
 
 def calculate_metrics(sensor_positions, coverage_map, sensor_radius):
-    covered_area = np.sum(coverage_map > 0)
-    sensor_density = len(sensor_positions) / covered_area
+    covered_area = np.sum(coverage_map > 0) * (sensor_radius / 10)**2
+    sensor_density = len(sensor_positions) / covered_area if covered_area > 0 else float('inf')
     
-    overlap_sum = np.sum(coverage_map) - np.sum(coverage_map > 0)
-    rate_of_overlap = overlap_sum / covered_area
-    coverage_quality = 1 / rate_of_overlap if rate_of_overlap > 0 else float('inf')
-    
-    return sensor_density, rate_of_overlap, coverage_quality
+    return sensor_density
+
 
 def calculate_total_energy_consumption(sensor_positions):
-    ENERGY_CONSUMPTION_RATE = 1  # Example value
+    ENERGY_CONSUMPTION_RATE = 1
     return len(sensor_positions) * ENERGY_CONSUMPTION_RATE
 
 def calculate_rate_of_overlap(tile_area, circle_area):
-    """Calculate the fixed rate of overlap for the inscribed tile."""
     rate_of_overlap = (circle_area - tile_area) / circle_area
-    return rate_of_overlap
+    coverage_quality = 1 / rate_of_overlap if rate_of_overlap > 0 else float('inf')
+    return rate_of_overlap, coverage_quality
 
 def calculate_spectre_area():
     polygon = Polygon(SPECTRE_POINTS)
@@ -131,7 +126,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
 tiles = generate_spectre_tiles(N_ITERATIONS)
 
 # Place sensors inscribed within each tile
-example_tile_points = [transPt(np.eye(3), pt) for pt in SPECTRE_POINTS]  # Using identity matrix for transformation
+example_tile_points = [transPt(np.eye(3), pt) for pt in SPECTRE_POINTS]
 DEFAULT_SENSOR_RADIUS = calculate_sensor_radius(example_tile_points)
 
 # Allow the user to set the sensor radius
@@ -150,9 +145,8 @@ plot_coverage_map(x_coords, y_coords, coverage_map)
 # Calculate metrics
 tile_area = calculate_spectre_area()
 circle_area = np.pi * DEFAULT_SENSOR_RADIUS**2
-fixed_rate_of_overlap = calculate_rate_of_overlap(tile_area, circle_area)
-
-sensor_density, rate_of_overlap, coverage_quality = calculate_metrics(sensor_positions, coverage_map, sensor_radius)
+fixed_rate_of_overlap, coverage_quality = calculate_rate_of_overlap(tile_area, circle_area)
+sensor_density = calculate_metrics(sensor_positions, coverage_map, sensor_radius)
 total_energy_consumption = calculate_total_energy_consumption(sensor_positions)
 
 # Print metrics in terms of sensing radius r
@@ -160,6 +154,7 @@ print(f"Sensor density: {sensor_density:.6f} sensors per unit area")
 print(f"Rate of overlap: {fixed_rate_of_overlap:.6f}")
 print(f"Coverage quality: {coverage_quality:.6f}")
 print(f"Total energy consumption: {total_energy_consumption:.2f} units")
+print(f"Spectre supertile area: {np.sum(coverage_map > 0) * (sensor_radius / 10)**2:.2f} square units")
 
 # Plot the spectre tiles with sensor nodes
 plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius)

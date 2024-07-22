@@ -6,7 +6,7 @@ from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 
 # Parameters
-N_ITERATIONS = 1
+N_ITERATIONS = 2
 GRID_RESOLUTION = 1  # Resolution of the coverage grid
 
 def calculate_sensor_radius(tile_points):
