@@ -7,8 +7,8 @@ import random
 import pandas as pd
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 
-plt.style.use(['science', 'ieee'])
-plt.rcParams.update({'figure.dpi': '100'})
+plt.style.use(['science', 'ieee', 'high-vis'])
+plt.rcParams.update({'figure.dpi': '300'})
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -156,7 +156,7 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
     plt.tight_layout()
     plt.show()
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
+def run_simulation(num_sensors=71, num_iterations=1, num_rounds=10):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
     results = {network_type: {'detections': 0, 'paths': [], 'intrusion_effort_metric': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
@@ -192,14 +192,14 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=10):
     plot_metrics(results, num_rounds)
 
 def plot_metrics(results, num_rounds):
-    metrics = ['Average Intrusion Effort', 'Average Total Hops', 'Base Station Reached %', 'Average Compromised Nodes', 'Total Detections']
+    metrics = ['Average Intrusion Effort', 'Average Total Hops', 'Base Station Reached Percentage', 'Average Compromised Nodes', 'Total Detections']
     data = []
     
     for network_type, network_results in results.items():
         data.extend([
             {'Network Type': network_type, 'Metric': 'Average Intrusion Effort', 'Value': network_results['intrusion_effort_metric'] / num_rounds},
             {'Network Type': network_type, 'Metric': 'Average Total Hops', 'Value': network_results['total_hops'] / num_rounds},
-            {'Network Type': network_type, 'Metric': 'Base Station Reached %', 'Value': (network_results['base_station_reached'] / num_rounds) * 100},
+            {'Network Type': network_type, 'Metric': 'Base Station Reached Percentage', 'Value': (network_results['base_station_reached'] / num_rounds) * 100},
             {'Network Type': network_type, 'Metric': 'Average Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds},
             {'Network Type': network_type, 'Metric': 'Total Detections', 'Value': network_results['detections']}
         ])
