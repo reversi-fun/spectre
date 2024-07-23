@@ -6,7 +6,7 @@ import pandas as pd
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 
 plt.style.use(['science', 'ieee', 'high-vis'])
-plt.rcParams.update({'figure.dpi': '300'})
+plt.rcParams.update({'figure.dpi': '600'})
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -113,7 +113,7 @@ def get_unique_angles_distances(current_node, network):
 def detect_pattern(current_node, network):
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     
-    max_angles = 6
+    max_angles = 12
     max_distances = 2
     
     return len(unique_angles) <= max_angles and len(unique_distances) <= max_distances
@@ -158,7 +158,7 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
 
     plt.show()
 
-def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000, save_fig=False):
+def run_simulation(num_sensors=71, num_iterations=1, num_rounds=10000, save_fig=False):
     sensor_radius = SENSOR_RADIUS
     networks = generate_networks(sensor_radius, num_sensors)
     results = {network_type: {'detections': 0, 'paths': [], 'total_intrusion_effort': 0, 'total_hops': 0, 'base_station_reached': 0, 'detected_clones': set(), 'compromised_nodes': 0} for network_type in networks.keys()}
@@ -187,22 +187,22 @@ def run_simulation(num_sensors=559, num_iterations=1, num_rounds=1000, save_fig=
         print(f"{network_type} Network: {results[network_type]['detections']} detections, {results[network_type]['base_station_reached']} base stations reached out of {num_iterations * num_rounds} total rounds")
         print(f"Average total intrusion effort: {results[network_type]['total_intrusion_effort'] / (num_iterations * num_rounds)}")
         print(f"Average total hops: {results[network_type]['total_hops'] / (num_iterations * num_rounds)}")
-        print(f"Total detected cloned nodes: {len(results[network_type]['detected_clones'])}")
-        print(f"Total compromised nodes: {results[network_type]['compromised_nodes'] / (num_iterations * num_rounds)}")
+        print(f"Average total detected cloned nodes: {len(results[network_type]['detected_clones'])} / {num_iterations * num_rounds}")
+        print(f"Average total compromised nodes: {results[network_type]['compromised_nodes'] / (num_iterations * num_rounds)}")
         print(f"Base station reached percentage: {(results[network_type]['base_station_reached'] / (num_iterations * num_rounds)) * 100}%")
     
     plot_metrics(results, num_rounds, num_sensors, save_fig)
 
 def plot_metrics(results, num_rounds, num_sensors, save_fig=False):
-    metrics = ['Total Intrusion Effort', 'Total Hops', 'Base Station Reached Percentage', 'Compromised Nodes', 'Total Detections']
+    metrics = ['Average Intrusion Effort', 'Average Hops', 'Base Station Reached Percentage', 'Average Compromised Nodes', 'Average Detections']
     data = []
 
     for network_type, network_results in results.items():
-        data.append({'Network Type': network_type, 'Metric': 'Total Intrusion Effort', 'Value': network_results['total_intrusion_effort'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Total Hops', 'Value': network_results['total_hops'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Average Intrusion Effort', 'Value': network_results['total_intrusion_effort'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Average Hops', 'Value': network_results['total_hops'] / num_rounds})
         data.append({'Network Type': network_type, 'Metric': 'Base Station Reached Percentage', 'Value': (network_results['base_station_reached'] / num_rounds) * 100})
-        data.append({'Network Type': network_type, 'Metric': 'Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds})
-        data.append({'Network Type': network_type, 'Metric': 'Total Detections', 'Value': network_results['detections']})
+        data.append({'Network Type': network_type, 'Metric': 'Average Compromised Nodes', 'Value': network_results['compromised_nodes'] / num_rounds})
+        data.append({'Network Type': network_type, 'Metric': 'Average Detections', 'Value': network_results['detections'] / num_rounds})
     
     df = pd.DataFrame(data)
 
@@ -221,4 +221,4 @@ def plot_metrics(results, num_rounds, num_sensors, save_fig=False):
         plt.show()
 
 if __name__ == "__main__":
-    run_simulation(num_iterations=1, num_rounds=1000, save_fig=True)
+    run_simulation(num_iterations=1, num_rounds=10000, save_fig=True)
