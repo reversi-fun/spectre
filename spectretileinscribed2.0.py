@@ -10,7 +10,7 @@ plt.style.use(['science', 'ieee'])
 plt.rcParams.update({'figure.dpi': 300})
 
 # Parameters
-N_ITERATIONS = 3
+N_ITERATIONS = 2
 DEFAULT_SENSOR_RADIUS = 10  # Default sensor radius
 
 def calculate_sensor_radius(tile_points):
