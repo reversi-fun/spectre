@@ -13,7 +13,7 @@ plt.style.use(['science', 'ieee'])
 plt.rcParams.update({'figure.dpi': 100})
 
 # Parameters
-NUM_SENSORS = 559
+NUM_SENSORS = 71
 NUM_ITERATIONS = 1
 NUM_ROUNDS = 100
 TRANSMISSION_ENERGY = 0.1  # Energy consumed for each transmission
