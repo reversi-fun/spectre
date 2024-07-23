@@ -102,7 +102,7 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
     for sensor_pos in sensor_positions:
         circle = Circle(sensor_pos, sensor_radius, color='r', fill=False, linestyle='dotted')
         ax.add_patch(circle)
-        ax.plot(sensor_pos[0], sensor_pos[1], 'ko', markersize=2)
+        ax.plot(sensor_pos[0], sensor_pos[1], 'ko', markersize=1)
 
     if all_points:
         all_points = np.array(all_points)

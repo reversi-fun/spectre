@@ -6,7 +6,7 @@ import pandas as pd
 from network_generation import generate_aperiodic_network, generate_hexagonal_network, generate_triangular_network, generate_square_network
 
 plt.style.use(['science', 'ieee', 'high-vis'])
-plt.rcParams.update({'figure.dpi': '600'})
+plt.rcParams.update({'figure.dpi': '300'})
 
 # Parameters
 SENSOR_RADIUS = 10
@@ -113,7 +113,7 @@ def get_unique_angles_distances(current_node, network):
 def detect_pattern(current_node, network):
     unique_angles, unique_distances = get_unique_angles_distances(current_node, network)
     
-    max_angles = 12
+    max_angles = 6
     max_distances = 2
     
     return len(unique_angles) <= max_angles and len(unique_distances) <= max_distances
