@@ -61,7 +61,7 @@ def generate_square_network(num_sensors, sensor_radius):
 
 def main():
     # Example usage
-    num_sensors = 559
+    num_sensors = 71
     sensor_radius = SENSOR_RADIUS
     
     aperiodic_network = generate_aperiodic_network(sensor_radius, num_sensors, 3)

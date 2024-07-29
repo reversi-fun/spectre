@@ -157,11 +157,10 @@ def plot_network_with_paths(network, paths, clone_positions, detected_clones, ba
     # Plot paths
     for path in paths:
         path = np.array(path)
-        plt.plot(path[:, 0], path[:, 1], 'r-', linewidth=1, alpha=0.5)
+        if len(path) > 0:
+            plt.plot(path[:, 0], path[:, 1], 'r-', linewidth=1, alpha=0.5)
 
     plt.title(title, fontsize=18, fontweight='bold')
-    plt.xlabel('Width', fontsize=16)
-    plt.ylabel('Height', fontsize=16)
     plt.legend(fontsize=12, loc='center left', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
 

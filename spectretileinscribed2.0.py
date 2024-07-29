@@ -6,8 +6,20 @@ from shapely.geometry import Polygon
 from spectre import buildSpectreBase, transPt, MetaTile, buildSupertiles, SPECTRE_POINTS
 import scienceplots
 
-plt.style.use(['science', 'ieee'])
-plt.rcParams.update({'figure.dpi': 600})
+plt.style.use(['science', 'ieee', 'high-vis'])
+plt.rcParams.update({
+    'figure.figsize': (6, 4),   # Size of the figure
+    'axes.titlesize': 18,       # Title size
+    'axes.labelsize': 16,       # X and Y label size
+    'xtick.labelsize': 14,      # X tick label size
+    'ytick.labelsize': 14,      # Y tick label size
+    'legend.fontsize': 12,      # Legend font size
+    'lines.markersize': 8,      # Marker size
+    'lines.linewidth': 2,       # Line width
+    'figure.dpi': 300,          # DPI for high-res images
+    'savefig.dpi': 300,         # DPI for saved figures
+})
+
 
 # Parameters
 N_ITERATIONS = 2
@@ -82,9 +94,7 @@ def plot_coverage_map(x_coords, y_coords, coverage_map):
     fig.colorbar(c, ax=ax, ticks=np.arange(0, np.max(coverage_map) + 1, 1))
     ax.set_aspect('equal', adjustable='box')
     plt.title("Coverage Map")
-    plt.xlabel("Width")
-    plt.ylabel("Height")
-    plt.savefig("coverage_map_highres_3.png", dpi=600)
+    plt.savefig("coverage_map_highres_77.png", dpi=300)
     plt.show()
 
 def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
@@ -118,8 +128,8 @@ def plot_spectre_tiles_with_sensors(tiles, sensor_positions, sensor_radius):
 
     ax.set_aspect('equal', adjustable='box')
     plt.grid(True)
-    plt.title("Spectre Tile with Sensors Inscribed for Coverage")
-    plt.savefig("spectre_with_sensors_inscribed_coverage_highres_3.png", dpi=600)
+    plt.title("Spectre Tile with Sensors Inscribed")
+    plt.savefig("spectre_with_sensors_inscribed_coverage_highres_67.png", dpi=300)
     plt.show()
 
 # Generate spectre tiles
