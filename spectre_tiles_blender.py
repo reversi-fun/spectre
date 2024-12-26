@@ -1,4 +1,4 @@
-# draw Polygons Svg by blender #####
+#!/usr/bin/env python3
 import os, sys, math, subprocess
 from random import random, uniform, choice
 from time import time
@@ -12,6 +12,12 @@ if _thisdir not in sys.path: sys.path.insert(0,_thisdir)
 
 if bpy:
 	import spectre
+	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
+	bpy.types.Object.tile_mystic = bpy.props.BoolProperty(name='tile mystic')
+
+SHAPE_TEST = True
+RENDER_TEST = False
+DEBUG_NUM = True
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -40,7 +46,7 @@ def smaterial(name, color):
 
 TRACE = []
 ITER = 0
-def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
+def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=True ):
 	global TRACE, num_tiles, ITER
 	ITER = iterations
 	num_tiles = 0
@@ -51,6 +57,8 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 	cam.data.ortho_scale = 50
 	cam.rotation_euler = [math.pi/2, 0,0]
 	cam.location = [8, -1, -15]
+	cam.location.x = CAM_COORDS[0][0]
+	cam.location.z = CAM_COORDS[0][1]
 	world = bpy.data.worlds[0]
 	world.use_nodes = False
 	world.color=[1,1,1]
@@ -88,13 +96,6 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 		bpy.ops.object.add(type="LATTICE")
 		lattice = bpy.context.active_object
 
-		if False:
-			mod = lattice.modifiers.new(type='CAST', name='cast')
-			mod.cast_type = "CYLINDER"
-			mod.factor = 10
-			mod.use_y = True
-			mod.use_z = False
-
 		mod = lattice.modifiers.new(type='SIMPLE_DEFORM', name='bend')
 		mod.deform_method='BEND'
 		mod.deform_axis = 'Z'
@@ -102,19 +103,43 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 		#mod.angle = math.radians(645)
 		#mod.angle = math.radians(544)
 		#mod.angle = math.radians(746)
+		mod.angle = math.radians(790)
 
 		lattice.data.points_u = 8
 		lattice.data.points_v = 2
 		lattice.data.points_w = 1
-		#lattice.scale *= 100
-		#lattice.location.x = 10
+		lattice.scale *= 20
+		lattice.location = [-46.39, 0, 30]
 
 		for info in TRACE:
 			o = info[0]
-			mod = o.modifiers.new(type="LATTICE", name='lattice')
+			mod = o.modifiers.new(type="LATTICE", name='cylinder')
 			mod.object=lattice
 
-	if iterations==5:
+		bpy.ops.object.add(type="LATTICE")
+		lattice = bpy.context.active_object
+		lattice.data.points_u = 8
+		lattice.data.points_v = 8
+		lattice.data.points_w = 8
+		lattice.scale *= 20
+		lattice.location = [-46.39, 1.48, 30]
+
+		mod = lattice.modifiers.new(type='CAST', name='cast')
+		mod.cast_type = "SPHERE"
+		mod.factor = 2.7
+		mod.use_z = False
+		for info in TRACE:
+			o = info[0]
+			mod = o.modifiers.new(type="LATTICE", name='sphere')
+			mod.object=lattice
+			if o.tile_mystic:
+				mod = o.modifiers.new(name='solid', type='SOLIDIFY')
+				mod.thickness = -2
+				mod.use_rim_only = True
+
+
+
+	if iterations==5 and RENDER_TEST:
 		scn.render.resolution_percentage = 200
 		for i,v in enumerate(CAM_COORDS):
 			cam.location.x = v[0]
@@ -174,7 +199,7 @@ def create_linear_curve(points):
 
 
 num_tiles = 0
-def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=False, gpencil=None):
+def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True, gpencil=None):
 	"""
 	T: transformation matrix
 	label: label of shape type
@@ -186,21 +211,33 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Fal
 	color_array = spectre.get_color_array(tile_transformation, label)
 	rot,scl = spectre.trot_inv(tile_transformation)
 
-	verts = []
-	for v in vertices:
-		x,y = v
-		#verts.append([x*scale,0,y*scale])
-		verts.append([x,0,y])
 
+	use_mesh = not gpencil
 	if gpencil:
+		verts = []
+		for v in vertices:
+			x,y = v
+			verts.append([x,0,y])
+
+		show_num = False
+		line_width = 100
+		if SHAPE_TEST:
+			use_mesh = True
+			shape = SHAPES[5][0]
+			if num_tiles not in shape['tiles']:
+				line_width = 60
+				use_mesh = False
+				if DEBUG_NUM:
+					show_num = True
+				else:
+					return
 		if label not in gpencil.data.layers:
 			layer = gpencil.data.layers.new(label)
 			frame = layer.frames.new(1)
 		frame = gpencil.data.layers[label].frames[0]
 		stroke = frame.strokes.new()
 		stroke.points.add(count=len(verts))
-		stroke.line_width = 100
-		#print(dir(stroke))
+		stroke.line_width = line_width
 		stroke.use_cyclic = True
 		ax = ay = az = 0.0
 		for i,v in enumerate(verts):
@@ -215,24 +252,29 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Fal
 
 		#X = tile_transformation[0][-1]
 		#Y = tile_transformation[1][-1]
-		frame = gpencil.data.layers['notes'].frames[0]
-		X = 0
-		info = str(num_tiles)
-		if scl==1:  ## this is when iterations is odd
-			info = '★' + info
-		for char in info:
-			assert char in grease_font
-			arr = grease_font[char]
-			stroke = frame.strokes.new()
-			stroke.points.add(count=len(arr))
-			stroke.line_width = 30
-			for i,v in enumerate(arr):
-				x,y = v
-				stroke.points[i].co.x = (x+ax+X) * scale
-				stroke.points[i].co.z = (y+az) * scale
-			X += 1.0
+		if show_num:
+			frame = gpencil.data.layers['notes'].frames[0]
+			X = 0
+			info = str(num_tiles)
+			if scl==1:  ## this is when iterations is odd
+				info = '★' + info
+			for char in info:
+				assert char in grease_font
+				arr = grease_font[char]
+				stroke = frame.strokes.new()
+				stroke.points.add(count=len(arr))
+				stroke.line_width = 30
+				for i,v in enumerate(arr):
+					x,y = v
+					stroke.points[i].co.x = (x+ax+X) * scale
+					stroke.points[i].co.z = (y+az) * scale
+				X += 1.0
 
-	else:
+	if use_mesh:
+		verts = []
+		for v in vertices:
+			x,y = v
+			verts.append([x*scale,0,y*scale])
 
 		faces = [
 			list(range(len(verts)))
@@ -247,8 +289,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Fal
 		oname='%s(%s.%s)' % (label, rot,scl)
 		obj = bpy.data.objects.new(oname, mesh)
 		bpy.context.collection.objects.link(obj)
+		obj.tile_index = num_tiles
 
 		if scl == 1:
+			obj.tile_mystic=True
 			obj.color = [0,0,0,1]
 		else:
 			obj.color = list(color_array) + [1]
@@ -280,10 +324,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Fal
 		#	mod = obj.modifiers.new(name='solid', type='SOLIDIFY')
 		#	mod.thickness = rot * 0.01
 
-		if scl == 1:
-			mod = obj.modifiers.new(name='solid', type='SOLIDIFY')
-			mod.thickness = -1
-			mod.use_rim_only = True
+		#if scl == 1:
+		#	mod = obj.modifiers.new(name='solid', type='SOLIDIFY')
+		#	mod.thickness = -1
+		#	mod.use_rim_only = True
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
@@ -302,7 +346,41 @@ def mktiles(vertices, scale=1.0):
 
 	return mesh
 
+SHAPES = {
+	5 : [
+		{'tiles':[
+			1211,1212,1213,1214,1215,1216,
+			1199,1200,1201,1202,1203,1204,1205,1206,1207,
+			1377,1391,1392,1368,1375,1395,1396,1397,1398, 1347,1399,1400,1401,1402,
+			1449,1450,1451,1452,1453,1454,1455,1456,
 
+			1190,1191,1192,1193,1194,1195,1196,1197,1198,
+			1388,1387,1386,1393,1394,1390,1391,1392,
+			1232,1255,1256,1257,1258,1259,1260,
+			1253,1254,1636,1458,1459,1460,1461,1462,
+
+			1369,1370,1371,
+
+			1389, 1448,
+
+		]},
+	],
+}
+
+def mkshapes(shapes=5):
+	rem = []
+	i = 0
+	for ob in bpy.data.objects:
+		ok = False
+		for shape in SHAPES[shapes]:
+			if i in shape['tiles']:
+				ok = True
+				break
+		if not ok:
+			rem.append(ob)
+
+	for ob in rem:
+		bpy.data.objects.remove( ob )
 
 if __name__ == '__main__':
 	args = []
@@ -313,7 +391,7 @@ if __name__ == '__main__':
 			args.append(arg)
 			k,v = arg.split('=')
 			k = k[2:]
-			if k=='iterations':
+			if k=='iterations' or k == 'shapes':
 				kwargs[k]=int(v)
 			else:
 				kwargs[k]=float(v)
@@ -327,10 +405,25 @@ if __name__ == '__main__':
 			cmd += ['--'] + args
 		print(cmd)
 		subprocess.check_call(cmd)
+
+		## TODO
+		#if 'iterations' in kwargs and kwargs['iterations']==5:
+		#	tmp = '/tmp/spectre.%s.blend' % kwargs['iterations']
+		#	cmd = ['blender', tmp, '--python', __file__, '--', '--shapes=5']
+
 		sys.exit()
 
 	if 'Cube' in bpy.data.objects:
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
 
 	print('kwargs:', kwargs)
-	build_tiles(**kwargs)
+	if 'shapes' in kwargs:
+		mkshapes(**kwargs)
+	elif 'iterations' in kwargs:
+		tmp = '/tmp/spectre.%s.blend' % kwargs['iterations']
+		#if not os.path.isfile(tmp):
+		build_tiles(**kwargs)
+		bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
+
+	else:
+		build_tiles(**kwargs)
