@@ -14,10 +14,13 @@ if bpy:
 	import spectre
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
 	bpy.types.Object.tile_mystic = bpy.props.BoolProperty(name='tile mystic')
+	bpy.types.Object.tile_angle = bpy.props.IntProperty(name='tile angle')
 
-SHAPE_TEST = True
+SHAPE_TEST = False
 RENDER_TEST = False
 DEBUG_NUM = True
+USE_PRINT = False
+MAKE_SHAPES = True
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -46,19 +49,20 @@ def smaterial(name, color):
 
 TRACE = []
 ITER = 0
-def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=True ):
+def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 	global TRACE, num_tiles, ITER
 	ITER = iterations
 	num_tiles = 0
 	TRACE = []
 
-	cam = bpy.data.objects['Camera']
-	cam.data.type='ORTHO'
-	cam.data.ortho_scale = 50
-	cam.rotation_euler = [math.pi/2, 0,0]
-	cam.location = [8, -1, -15]
-	cam.location.x = CAM_COORDS[0][0]
-	cam.location.z = CAM_COORDS[0][1]
+	if USE_PRINT:
+		cam = bpy.data.objects['Camera']
+		cam.data.type='ORTHO'
+		cam.data.ortho_scale = 50
+		cam.rotation_euler = [math.pi/2, 0,0]
+		cam.location = [8, -1, -15]
+		cam.location.x = CAM_COORDS[0][0]
+		cam.location.z = CAM_COORDS[0][1]
 	world = bpy.data.worlds[0]
 	world.use_nodes = False
 	world.color=[1,1,1]
@@ -139,13 +143,42 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=True ):
 
 
 
-	if iterations==5 and RENDER_TEST:
+	if RENDER_TEST:
+		scn.render.film_transparent=True
+		scn.render.resolution_x = 1920
+		scn.render.resolution_y = 1260
 		scn.render.resolution_percentage = 200
 		for i,v in enumerate(CAM_COORDS):
 			cam.location.x = v[0]
 			cam.location.z = v[1]
 			scn.render.filepath='/tmp/tiles.%s.png' % i
 			bpy.ops.render.render(write_still=True)
+
+	if MAKE_SHAPES:
+		build_shapes()
+
+def build_shapes():
+	pairs = {}
+	tiles = []
+	for a in bpy.data.objects:
+		if a in tiles: continue
+		if not a.tile_index: continue
+		tag = a.name.split('.')[0]
+		hits = []
+		for b in bpy.data.objects:
+			if b.tile_index == a.tile_index: continue
+			if b.name.split('.')[0] != tag: continue
+			if int(b.location.z) != int(a.location.z):
+				continue
+			hits.append(b)
+		if hits:
+			pairs[a] = hits
+			tiles.append(a)
+			tiles += hits
+
+	for ob in pairs:
+		print(ob.name, pairs[ob])
+
 
 
 CAM_COORDS = [
@@ -161,14 +194,14 @@ CAM_COORDS = [
 	[-50, -45],
 	[-25, -45],
 	[0, -45],
-	[25, -45],
-	[50, -45],
+	#[25, -45],
+	#[50, -45],
 
-	[50, -60],
-	[25, -60],
-	[0, -60],
-	[-25, -60],
-	[-50, -60],
+	#[50, -60],
+	#[25, -60],
+	#[0, -60],
+	#[-25, -60],
+	#[-50, -60],
 
 ]
 
@@ -199,7 +232,7 @@ def create_linear_curve(points):
 
 
 num_tiles = 0
-def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True, gpencil=None):
+def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True, gpencil=None, use_mesh=True):
 	"""
 	T: transformation matrix
 	label: label of shape type
@@ -212,14 +245,14 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 	rot,scl = spectre.trot_inv(tile_transformation)
 
 
-	use_mesh = not gpencil
+	#use_mesh = not gpencil
 	if gpencil:
 		verts = []
 		for v in vertices:
 			x,y = v
 			verts.append([x,0,y])
 
-		show_num = False
+		show_num = USE_PRINT
 		line_width = 100
 		if SHAPE_TEST:
 			use_mesh = True
@@ -286,10 +319,11 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 		#if 'SPECTRE' not in bpy.data.meshes:
 		#mesh = mktiles(SPECTRE_POINTS, scale=scale)
 		#mesh = bpy.data.meshes['SPECTRE']
-		oname='%s(%s.%s)' % (label, rot,scl)
+		oname='%s(%s|%s)' % (label, rot,scl)
 		obj = bpy.data.objects.new(oname, mesh)
 		bpy.context.collection.objects.link(obj)
 		obj.tile_index = num_tiles
+		obj.tile_angle = rot
 
 		if scl == 1:
 			obj.tile_mystic=True
@@ -397,6 +431,13 @@ if __name__ == '__main__':
 				kwargs[k]=float(v)
 		elif arg.endswith('.blend'):
 			blend = arg
+		elif arg=='--print':
+			USE_PRINT = True
+			args.append(arg)
+		elif arg=='--shape-test':
+			SHAPE_TEST = True
+			args.append(arg)
+
 	if not bpy:
 		cmd = ['blender']
 		if blend: cmd.append(blend)
@@ -417,7 +458,10 @@ if __name__ == '__main__':
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
 
 	print('kwargs:', kwargs)
-	if 'shapes' in kwargs:
+	if '--print' in sys.argv:
+		RENDER_TEST = True
+		build_tiles(a=5, b=5, iterations=5)
+	elif 'shapes' in kwargs:
 		mkshapes(**kwargs)
 	elif 'iterations' in kwargs:
 		tmp = '/tmp/spectre.%s.blend' % kwargs['iterations']
