@@ -10,11 +10,23 @@ except:
 _thisdir = os.path.split(os.path.abspath(__file__))[0]
 if _thisdir not in sys.path: sys.path.insert(0,_thisdir)
 
+if sys.platform == 'win32':
+	BLENDER = 'C:/Program Files/Blender Foundation/Blender 4.2/blender.exe'
+	if not os.path.isfile(BLENDER):
+		BLENDER = 'C:/Program Files/Blender Foundation/Blender 3.6/blender.exe'
+elif sys.platform == 'darwin':
+	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
+else:
+	BLENDER = 'blender'
+	if os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
+		BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
+
 if bpy:
 	import spectre
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
 	bpy.types.Object.tile_mystic = bpy.props.BoolProperty(name='tile mystic')
 	bpy.types.Object.tile_angle = bpy.props.IntProperty(name='tile angle')
+	bpy.types.Object.tile_match_error = bpy.props.FloatProperty(name='tile error')
 
 SHAPE_TEST = False
 RENDER_TEST = False
@@ -170,14 +182,39 @@ def build_shapes():
 			if b.name.split('.')[0] != tag: continue
 			if int(b.location.z) != int(a.location.z):
 				continue
+			b.tile_match_error = a.location.z - b.location.z
 			hits.append(b)
 		if hits:
 			pairs[a] = hits
 			tiles.append(a)
 			tiles += hits
 
-	for ob in pairs:
-		print(ob.name, pairs[ob])
+	for a in pairs:
+		print(a.name, pairs[a])
+		points = [a.location]
+		x,y,z = a.location
+		if a.tile_mystic:
+			points.append([x,y-3,z])
+		else:
+			points.append([x,y+3,z])
+		rad = 0.1
+		for b in pairs[a]:
+			print('error:', b.tile_match_error)
+			diff = b.location-a.location
+			mid = a.location + (diff*0.5)
+			if b.tile_mystic:
+				mid.y -= diff.length * 0.5
+			else:
+				mid.y += diff.length * 0.5
+			points.append(mid)
+			x,y,z = b.location
+			if b.tile_mystic:
+				points.append([x,y-3,z])
+			else:
+				points.append([x,y+3,z])
+			points.append(b.location)
+			rad = diff.length
+		create_bezier_curve(points, radius=rad*0.1)
 
 
 
@@ -205,7 +242,27 @@ CAM_COORDS = [
 
 ]
 
-def create_linear_curve(points):
+def create_bezier_curve(points, radius=1.0):
+	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
+	curve_data.dimensions = '3D'
+	curve_data.bevel_resolution = 1
+	spline = curve_data.splines.new('BEZIER')
+	spline.bezier_points.add( len(points) - 1)
+	for i, point in enumerate(points):
+		x,y,z = point
+		spline.bezier_points[i].co.x = x
+		spline.bezier_points[i].co.y = y
+		spline.bezier_points[i].co.z = z
+		spline.bezier_points[i].handle_left_type = 'AUTO' # ‘FREE’, ‘VECTOR’, ‘ALIGNED’, ‘AUTO’
+		spline.bezier_points[i].handle_right_type = 'AUTO' # ‘FREE’, ‘VECTOR’, ‘ALIGNED’, ‘AUTO’
+	curve_obj = bpy.data.objects.new("BezCurveObject", curve_data)
+	bpy.context.collection.objects.link(curve_obj)
+	curve_obj.data.extrude = 0.1
+	curve_obj.data.bevel_depth=0.3
+	return curve_obj
+
+
+def create_linear_curve(points, radius=0.5, start_rad=1, end_rad=1):
 	curve_data = bpy.data.curves.new(name="LinearCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	polyline = curve_data.splines.new('POLY')
@@ -216,12 +273,13 @@ def create_linear_curve(points):
 		polyline.points[i].co.y = y
 		polyline.points[i].co.z = z
 		#polyline.points[i].tilt = i*30
+		polyline.points[i].radius = radius
 
 	#polyline.points[0].tilt = math.radians(90)
 	#polyline.points[1].tilt = math.radians(180)
-	polyline.points[1].radius = 0
-	polyline.points[0].radius = 10
-	polyline.points[-1].radius = 10
+	#polyline.points[1].radius = 0
+	polyline.points[0].radius = start_rad
+	polyline.points[-1].radius = end_rad
 
 	curve_obj = bpy.data.objects.new("LinearCurveObject", curve_data)
 	bpy.context.collection.objects.link(curve_obj)
@@ -325,7 +383,9 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 		obj.tile_index = num_tiles
 		obj.tile_angle = rot
 
-		if scl == 1:
+
+		if (ITER % 2 and scl == 1) or (not ITER % 2 and scl == -1):
+			#if scl == 1:
 			obj.tile_mystic=True
 			obj.color = [0,0,0,1]
 		else:
@@ -359,9 +419,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 		#	mod.thickness = rot * 0.01
 
 		#if scl == 1:
-		#	mod = obj.modifiers.new(name='solid', type='SOLIDIFY')
-		#	mod.thickness = -1
-		#	mod.use_rim_only = True
+		if obj.tile_mystic:
+			mod = obj.modifiers.new(name='solid', type='SOLIDIFY')
+			mod.thickness = -1
+			mod.use_rim_only = True
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
@@ -439,7 +500,7 @@ if __name__ == '__main__':
 			args.append(arg)
 
 	if not bpy:
-		cmd = ['blender']
+		cmd = [BLENDER]
 		if blend: cmd.append(blend)
 		cmd += ['--python', __file__]
 		if args:
