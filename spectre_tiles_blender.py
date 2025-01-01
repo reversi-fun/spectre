@@ -175,12 +175,11 @@ def build_shapes():
 	for a in bpy.data.objects:
 		if a in tiles: continue
 		if not a.tile_index: continue
-		tag = a.name.split('.')[0]
 		hits = []
 		for b in bpy.data.objects:
 			if b.tile_index == a.tile_index: continue
-			if b.name.split('.')[0] != tag: continue
-			if int(b.location.z) != int(a.location.z):
+			if b.tile_angle != a.tile_angle: continue
+			if round(b.location.z,0) != round(a.location.z,0):
 				continue
 			b.tile_match_error = a.location.z - b.location.z
 			hits.append(b)
@@ -189,8 +188,22 @@ def build_shapes():
 			tiles.append(a)
 			tiles += hits
 
+	shapes = {}
+
 	for a in pairs:
 		print(a.name, pairs[a])
+
+		#width = (b.location - a.location).length
+		b = pairs[a][-1]
+		width = abs(a.location.x - b.location.x)
+		print('WIDTH:', width)
+		width = round(width,4)
+		if width not in shapes:
+			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[]}
+
+		shape = shapes[width]
+		shape['pairs'].append([a]+pairs[a])
+
 		points = [a.location]
 		x,y,z = a.location
 		if a.tile_mystic:
@@ -216,6 +229,12 @@ def build_shapes():
 			rad = diff.length
 		create_bezier_curve(points, radius=rad*0.1)
 
+	for width in shapes:
+		shape = shapes[width]
+		print(width, shape)
+		for pair in shape['pairs']:
+			for tile in pair:
+				tile.color = shape['color']
 
 
 CAM_COORDS = [
@@ -257,8 +276,8 @@ def create_bezier_curve(points, radius=1.0):
 		spline.bezier_points[i].handle_right_type = 'AUTO' # ‘FREE’, ‘VECTOR’, ‘ALIGNED’, ‘AUTO’
 	curve_obj = bpy.data.objects.new("BezCurveObject", curve_data)
 	bpy.context.collection.objects.link(curve_obj)
-	curve_obj.data.extrude = 0.1
-	curve_obj.data.bevel_depth=0.3
+	#curve_obj.data.extrude = 0.1
+	#curve_obj.data.bevel_depth=0.3
 	return curve_obj
 
 
@@ -387,9 +406,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 		if (ITER % 2 and scl == 1) or (not ITER % 2 and scl == -1):
 			#if scl == 1:
 			obj.tile_mystic=True
-			obj.color = [0,0,0,1]
+			#obj.color = [0,0,0,1]
 		else:
-			obj.color = list(color_array) + [1]
+			#obj.color = list(color_array) + [1]
+			pass
 
 		tag = ','.join([str(v) for v in color_array])
 		mat = smaterial(tag, color_array)
