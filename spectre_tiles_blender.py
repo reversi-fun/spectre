@@ -18,7 +18,9 @@ elif sys.platform == 'darwin':
 	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
 else:
 	BLENDER = 'blender'
-	if os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
+	if os.path.isfile(os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')):
+		BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
+	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
 		BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
 
 if bpy:
@@ -27,6 +29,10 @@ if bpy:
 	bpy.types.Object.tile_mystic = bpy.props.BoolProperty(name='tile mystic')
 	bpy.types.Object.tile_angle = bpy.props.IntProperty(name='tile angle')
 	bpy.types.Object.tile_match_error = bpy.props.FloatProperty(name='tile error')
+	bpy.types.Object.tile_pair = bpy.props.PointerProperty(name="pair", type=bpy.types.Object)
+	bpy.types.Object.tile_shape_border = bpy.props.BoolProperty(name="border tiles")
+	bpy.types.Object.tile_shape_index = bpy.props.IntProperty(name='shape index')
+
 
 SHAPE_TEST = False
 RENDER_TEST = False
@@ -182,6 +188,7 @@ def build_shapes():
 			if round(b.location.z,0) != round(a.location.z,0):
 				continue
 			b.tile_match_error = a.location.z - b.location.z
+			a.tile_pair = b
 			hits.append(b)
 		if hits:
 			pairs[a] = hits
@@ -189,7 +196,7 @@ def build_shapes():
 			tiles += hits
 
 	shapes = {}
-
+	curves = []
 	for a in pairs:
 		print(a.name, pairs[a])
 
@@ -199,7 +206,7 @@ def build_shapes():
 		print('WIDTH:', width)
 		width = round(width,4)
 		if width not in shapes:
-			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[]}
+			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[], 'curve':None}
 
 		shape = shapes[width]
 		shape['pairs'].append([a]+pairs[a])
@@ -227,14 +234,56 @@ def build_shapes():
 				points.append([x,y+3,z])
 			points.append(b.location)
 			rad = diff.length
-		create_bezier_curve(points, radius=rad*0.1)
+		cu = create_bezier_curve(points, radius=rad*0.1)
+		shape['curve'] = cu
+		curves.append(cu)
 
-	for width in shapes:
+	nurb = create_nurbs( curves )
+
+	for sidx, width in enumerate(shapes):
 		shape = shapes[width]
 		print(width, shape)
 		for pair in shape['pairs']:
 			for tile in pair:
 				tile.color = shape['color']
+				tile.tile_shape_index = sidx + 1
+			shape['curve'].color=shape['color']
+
+	for sidx, width in enumerate(shapes):
+		shape = shapes[width]
+		for pair in shape['pairs']:
+			for tile in pair:
+				near = []
+				for b in bpy.data.objects:
+					if not b.tile_index: continue
+					if tile.tile_index==b.tile_index: continue
+					if b.tile_shape_index: continue
+
+def create_nurbs( curves ):
+	nurbs_surface = bpy.data.curves.new("NURBS Surface", type='SURFACE') 
+	nurbs_surface.dimensions = '3D' 
+	nurbs_surface.resolution_u = 8 
+	nurbs_surface.resolution_v = 8 	 
+	nurbs_obj = bpy.data.objects.new("NURBS", nurbs_surface) 
+	bpy.context.scene.collection.objects.link(nurbs_obj)
+	N = 5 #N = len(curves[1].data.splines[0].bezier_points)
+	C = 0
+	for cu in curves:
+		if len(cu.data.splines[0].bezier_points) != N: continue
+		C += 1
+		spline = nurbs_surface.splines.new('NURBS')
+		spline.points.add( N-1 )  # -1 because of default point
+		for i in range(N):
+			x,y,z = cu.data.splines[0].bezier_points[i].co
+			spline.points[i].co = mathutils.Vector((x,y,z, 1))
+			spline.points[i].select=True
+	print('nurbs: %s x %s' % (C, N))
+	bpy.context.view_layer.objects.active = nurbs_obj
+	bpy.ops.object.mode_set(mode='EDIT') 
+	bpy.ops.curve.make_segment()
+	bpy.ops.object.mode_set(mode='OBJECT') 
+
+	return nurbs_obj
 
 
 CAM_COORDS = [
@@ -261,7 +310,7 @@ CAM_COORDS = [
 
 ]
 
-def create_bezier_curve(points, radius=1.0):
+def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02):
 	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	curve_data.bevel_resolution = 1
@@ -276,8 +325,8 @@ def create_bezier_curve(points, radius=1.0):
 		spline.bezier_points[i].handle_right_type = 'AUTO' # ‘FREE’, ‘VECTOR’, ‘ALIGNED’, ‘AUTO’
 	curve_obj = bpy.data.objects.new("BezCurveObject", curve_data)
 	bpy.context.collection.objects.link(curve_obj)
-	#curve_obj.data.extrude = 0.1
-	#curve_obj.data.bevel_depth=0.3
+	curve_obj.data.extrude = extrude
+	curve_obj.data.bevel_depth=depth
 	return curve_obj
 
 
