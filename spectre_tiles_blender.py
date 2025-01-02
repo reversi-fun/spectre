@@ -37,10 +37,11 @@ if bpy:
 	bpy.types.Object.tile_angle = bpy.props.IntProperty(name='tile angle')
 	bpy.types.Object.tile_match_error = bpy.props.FloatProperty(name='tile error')
 	bpy.types.Object.tile_pair = bpy.props.PointerProperty(name="pair", type=bpy.types.Object)
-	bpy.types.Object.tile_shape_border = bpy.props.BoolProperty(name="border tile")
+	bpy.types.Object.tile_shape_border_left = bpy.props.BoolProperty(name="border left")
+	bpy.types.Object.tile_shape_border_right = bpy.props.BoolProperty(name="border right")
 	bpy.types.Object.tile_shape_index = bpy.props.IntProperty(name='shape index')
 
-
+AUTO_SHAPES = False
 SHAPE_TEST = False
 RENDER_TEST = False
 DEBUG_NUM = True
@@ -223,12 +224,13 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 
 		shape = shapes[width]
 		shape['pairs'].append([a]+pairs[a])
-		if a.location.x < b.location.x:
-			a.tile_shape_left = True
-			b.tile_shape_right = True
-		else:
-			a.tile_shape_right = True
-			b.tile_shape_left = True
+		if AUTO_SHAPES:
+			if a.location.x < b.location.x:
+				a.tile_shape_left = True
+				b.tile_shape_right = True
+			else:
+				a.tile_shape_right = True
+				b.tile_shape_left = True
 
 		cu,points = pairs_to_curve( shape['pairs'][-1], iterations=iterations )
 		shape['curves'].append(cu)
@@ -261,10 +263,15 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 			)
 
 		#print(width, shape)
+		tag = 'shape(%s)' % sidx
+		if tag not in bpy.data.collections:
+			bpy.data.collections.new(tag)
 		for pair in shape['pairs']:
 			for tile in pair:
 				tile.color = shape['color']
 				tile.tile_shape_index = sidx + 1
+				if AUTO_SHAPES:
+					tile.tile_collection = bpy.data.collections[tag]
 
 	if False:
 		xs = list(curves_by_x.keys())
@@ -409,6 +416,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None ):
 	if color:
 		r,g,b,a = color
 		nurbs_obj.color = [r,g,b,0.8]
+	nurbs_obj.select_set(False)
 	return nurbs_obj
 
 
@@ -672,6 +680,11 @@ def import_json( jfile, scale=0.1 ):
 			obj.tile_angle = o['angle']
 			obj.tile_x = o['x']
 			obj.tile_y = o['y']
+			if 'border' in o:
+				if o['border']=='left':
+					obj.tile_shape_border_left=True
+				elif o['border']=='right':
+					obj.tile_shape_border_right=True
 			if 'mystic' in o:
 				obj.tile_mystic=True
 			if 'type' in o:
@@ -691,16 +704,85 @@ def import_json( jfile, scale=0.1 ):
 
 			obj.parent=root
 
+		curves = []
+		left = []
+		left_bor = []
+		right = []
+		right_bor = []
 		for tile in tiles:
+			if tile.tile_shape_border_left:
+				left_bor.append(tile)
+			elif tile.tile_shape_border_right:
+				right_bor.append(tile)
+
 			if 'pair' in tiles[tile]:
 				pname = tiles[tile]['pair']
 				if pname in bpy.data.objects:
-					tile.tile_pair = bpy.data.objects[pname]
-
+					b = bpy.data.objects[pname]
+					tile.tile_pair = b
 					cu,points = pairs_to_curve( [tile, tile.tile_pair] )
-
+					cu.parent = root
+					curves.append(cu)
+					if tile.tile_shape_left:
+						left.append( tile )
+					elif tile.tile_shape_right:
+						right.append( tile )
+					if b.tile_shape_left:
+						left.append( b )
+					elif b.tile_shape_right:
+						right.append( b )
 				else:
 					print("WARN: missing tile pair:", pname)
+
+		if len(curves) >= 2:
+			mat = tile.data.materials[0]
+			nurb = create_nurbs([curves[0]]+curves+[curves[-1]], material=mat)
+			nurb.parent=root
+
+		if False:
+			if len(left) > 1:
+				trace_tiles(left)
+			if len(right) > 1:
+				trace_tiles(right)
+
+		if len(left_bor) > 1:
+			cu = trace_tiles(left_bor+left)
+			#cu.data.offset = -0.1
+			cu.data.extrude = 0.5
+			cu.location.y = 0.1
+		if len(right_bor) > 1:
+			cu = trace_tiles(right_bor+right)
+			#cu.data.offset = -0.1
+			cu.data.extrude = 0.5
+			cu.location.y = 0.1
+
+def trace_tiles( tiles ):
+	bpy.ops.object.select_all(action='DESELECT')
+	tmp = []
+	for tile in tiles:
+		copy = tile.copy()
+		copy.data= tile.data.copy()
+		tmp.append( copy )
+		bpy.context.scene.collection.objects.link(copy)
+	tiles = tmp
+	bpy.context.view_layer.objects.active = tiles[0]
+	for ob in tiles:
+		ob.select_set(True)
+
+	bpy.ops.object.join()
+	ob = bpy.context.active_object
+	ob.select_set(True)
+	bpy.context.view_layer.objects.active = ob
+	if 1:
+		mod = ob.modifiers.new(name='merge', type="WELD")
+		#bpy.ops.object.modifier_apply(modifier=mod.name)
+
+		mod = ob.modifiers.new(name='clean', type="DECIMATE")
+		mod.ratio = 0.98
+		#bpy.ops.object.modifier_apply(modifier=mod.name)
+
+	bpy.ops.object.convert(target="CURVE")
+	return ob
 
 
 def mktiles(vertices, scale=1.0):
@@ -767,6 +849,11 @@ if bpy:
 		def draw(self, context):
 			if not context.active_object: return
 			ob = context.active_object
+			if ob.type=='CURVE':
+				a = ob.data.splines[0].calc_length()
+				self.layout.label(text="length=%s" % a)
+
+				return
 			if not ob.tile_index: return
 
 			self.layout.label(text="index=%s" % ob.tile_index)
@@ -774,12 +861,16 @@ if bpy:
 			self.layout.label(text="y=%s" % ob.tile_y)
 			self.layout.label(text="r=%s" % ob.tile_angle)
 
-			self.layout.prop(ob, 'tile_shape_border')
 			self.layout.prop(ob, 'tile_pair')
 			self.layout.prop(ob, 'tile_collection')
 
-			self.layout.prop(ob, 'tile_shape_left')
-			self.layout.prop(ob, 'tile_shape_right')
+			row = self.layout.row()
+			row.prop(ob, 'tile_shape_border_left')
+			row.prop(ob, 'tile_shape_border_right')
+
+			row = self.layout.row()
+			row.prop(ob, 'tile_shape_left')
+			row.prop(ob, 'tile_shape_right')
 
 	@bpy.utils.register_class
 	class SpecExport(bpy.types.Operator):
@@ -820,8 +911,10 @@ def export_json(world):
 		}
 		if ob.tile_mystic:
 			o['mystic']=1
-		if ob.tile_shape_border:
-			o['border']=1
+		if ob.tile_shape_border_left:
+			o['border']='left'
+		if ob.tile_shape_border_right:
+			o['border']='right'
 		if ob.tile_shape_left:
 			o['type']='left'
 		if ob.tile_shape_right:
