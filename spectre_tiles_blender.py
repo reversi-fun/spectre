@@ -617,6 +617,43 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
+def import_json( jfile, scale=0.1 ):
+	import json
+	dump = json.loads(open(jfile).read())
+	print(dump)
+	for shape_name in dump:
+		print(shape_name)
+		for o in dump[shape_name]:
+			print(o['name'])
+			trans = spectre.trot( o['angle'] )
+			trans[0][-1] = o['x']
+			trans[1][-1] = o['y']
+			print(trans)
+			if 'mystic' in o:
+				vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+			else:
+				vertices = (spectre.SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+
+			verts = []
+			for v in vertices:
+				x,y = v
+				verts.append([x*scale,0,y*scale])
+
+			faces = [
+				list(range(len(verts)))
+			]
+
+			mesh = bpy.data.meshes.new(o['name'])
+			mesh.from_pydata(verts, [], faces)
+			obj = bpy.data.objects.new(o['name'], mesh)
+			bpy.context.collection.objects.link(obj)
+			obj.tile_index = o['index']
+			obj.tile_angle = o['angle']
+			obj.tile_x = o['x']
+			obj.tile_y = o['y']
+
+
+
 def mktiles(vertices, scale=1.0):
 	verts = []
 	for v in vertices:
@@ -723,11 +760,14 @@ def export_json(world):
 	shapes = {}
 	for ob in bpy.data.objects:
 		if not ob.tile_index or not ob.tile_collection: continue
+		r,g,b,a = ob.data.materials[0].diffuse_color
 		o = {
 			'name':ob.name,
 			'index':ob.tile_index,
 			'x':ob.tile_x,
 			'y':ob.tile_y,
+			'angle':ob.tile_angle,
+			'color':[r,g,b],
 		}
 		if ob.tile_mystic:
 			o['mystic']=1
@@ -750,10 +790,14 @@ def export_json(world):
 	print(dump)
 	open(tmp, 'wb').write(dump.encode('utf-8'))
 
+
+
+
 if __name__ == '__main__':
 	args = []
 	kwargs = {}
 	blend = None
+	jfile = None
 	for arg in sys.argv:
 		if arg.startswith('--') and '=' in arg:
 			args.append(arg)
@@ -765,6 +809,9 @@ if __name__ == '__main__':
 				kwargs[k]=float(v)
 		elif arg.endswith('.blend'):
 			blend = arg
+		elif arg.endswith('.json'):
+			args.append(arg)
+			jfile = arg
 		elif arg=='--print':
 			USE_PRINT = True
 			args.append(arg)
@@ -792,7 +839,9 @@ if __name__ == '__main__':
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
 
 	print('kwargs:', kwargs)
-	if '--print' in sys.argv:
+	if jfile:
+		import_json( jfile )
+	elif '--print' in sys.argv:
 		RENDER_TEST = True
 		build_tiles(a=5, b=5, iterations=5)
 	elif 'shapes' in kwargs:
