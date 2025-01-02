@@ -18,7 +18,9 @@ elif sys.platform == 'darwin':
 	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
 else:
 	BLENDER = 'blender'
-	if os.path.isfile(os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')):
+	if os.path.isfile(os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')):
+		BLENDER = os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')
+	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')):
 		BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
 	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
 		BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
@@ -26,11 +28,16 @@ else:
 if bpy:
 	import spectre
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
+	bpy.types.Object.tile_x = bpy.props.FloatProperty(name='tile x')
+	bpy.types.Object.tile_y = bpy.props.FloatProperty(name='tile y')
+	bpy.types.Object.tile_shape_left = bpy.props.BoolProperty(name="left")
+	bpy.types.Object.tile_shape_right = bpy.props.BoolProperty(name="right")
+	bpy.types.Object.tile_collection = bpy.props.PointerProperty(name="shape", type=bpy.types.Collection)
 	bpy.types.Object.tile_mystic = bpy.props.BoolProperty(name='tile mystic')
 	bpy.types.Object.tile_angle = bpy.props.IntProperty(name='tile angle')
 	bpy.types.Object.tile_match_error = bpy.props.FloatProperty(name='tile error')
 	bpy.types.Object.tile_pair = bpy.props.PointerProperty(name="pair", type=bpy.types.Object)
-	bpy.types.Object.tile_shape_border = bpy.props.BoolProperty(name="border tiles")
+	bpy.types.Object.tile_shape_border = bpy.props.BoolProperty(name="border tile")
 	bpy.types.Object.tile_shape_index = bpy.props.IntProperty(name='shape index')
 
 
@@ -173,9 +180,9 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 			bpy.ops.render.render(write_still=True)
 
 	if MAKE_SHAPES:
-		build_shapes()
+		build_shapes(iterations=iterations)
 
-def build_shapes():
+def build_shapes(iterations=3, sharp_nurb_shapes=False):
 	pairs = {}
 	tiles = []
 	for a in bpy.data.objects:
@@ -197,29 +204,33 @@ def build_shapes():
 
 	shapes = {}
 	curves = []
+	curves_by_height = {}
+	curves_by_x = {}
 	for a in pairs:
 		print(a.name, pairs[a])
 
 		#width = (b.location - a.location).length
 		b = pairs[a][-1]
 		width = abs(a.location.x - b.location.x)
-		print('WIDTH:', width)
+		#print('WIDTH:', width)
 		width = round(width,4)
 		if width not in shapes:
-			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[], 'curve':None}
+			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[], 'curves':[]}
 
 		shape = shapes[width]
 		shape['pairs'].append([a]+pairs[a])
 
-		points = [a.location]
 		x,y,z = a.location
+
+		points = [ [x,y,z, math.radians(a.tile_angle)]]
+
 		if a.tile_mystic:
-			points.append([x,y-3,z])
+			points.append([x,y-3,z,math.radians(a.tile_angle)])
 		else:
-			points.append([x,y+3,z])
+			points.append([x,y+3,z,math.radians(a.tile_angle)])
 		rad = 0.1
 		for b in pairs[a]:
-			print('error:', b.tile_match_error)
+			#print('error:', b.tile_match_error)
 			diff = b.location-a.location
 			mid = a.location + (diff*0.5)
 			if b.tile_mystic:
@@ -229,25 +240,111 @@ def build_shapes():
 			points.append(mid)
 			x,y,z = b.location
 			if b.tile_mystic:
-				points.append([x,y-3,z])
+				points.append([x,y-3,z, math.radians(-b.tile_angle)])
 			else:
-				points.append([x,y+3,z])
-			points.append(b.location)
+				points.append([x,y+3,z, math.radians(-b.tile_angle)])
+			#points.append(b.location)
+			points.append([x,y,z, math.radians(-b.tile_angle)])
 			rad = diff.length
-		cu = create_bezier_curve(points, radius=rad*0.1)
-		shape['curve'] = cu
-		curves.append(cu)
+		if iterations==1:
+			extrude=1
+		elif iterations==2:
+			extrude=0.4
+		elif iterations==3:
+			extrude=0.1
+		else:
+			extrude=0.02
+		cu = create_bezier_curve(points, radius=rad*0.1, extrude=extrude, depth=0.01, material=a.data.materials[0])
+		shape['curves'].append(cu)
+		if len(points)==5:
+			curves.append(cu)
+
+		z = a.location.z
+		if z not in curves_by_height:
+			curves_by_height[z] = []
+		curves_by_height[z].append(cu)
+
+		x = a.location.x
+		if x not in curves_by_x:
+			curves_by_x[x] = []
+		curves_by_x[x].append(cu)
 
 	nurb = create_nurbs( curves )
+	nurb.scale.y = -1
 
 	for sidx, width in enumerate(shapes):
 		shape = shapes[width]
-		print(width, shape)
+		for cu in shape['curves']:
+			cu.color=shape['color']
+		if sharp_nurb_shapes:
+			nurb = create_nurbs(
+				shape['curves'], 
+				sharp=True, 
+				material=shape['pairs'][0][0].data.materials[0],
+				color=shape['color'],
+			)
+
+		#print(width, shape)
 		for pair in shape['pairs']:
 			for tile in pair:
 				tile.color = shape['color']
 				tile.tile_shape_index = sidx + 1
-			shape['curve'].color=shape['color']
+
+	if False:
+		xs = list(curves_by_x.keys())
+		xs.sort()
+		prev_x = None
+		xsurfs = []
+		for x in xs:
+			for cu in curves_by_x[x]:
+				if prev_x is None or abs(x - prev_x) > 2:
+					surf = []
+					xsurfs.append(surf)
+					prev_x=x
+				surf.append(cu)
+			prev_x = x
+
+		for surf in xsurfs:
+			if len(surf) < 3: continue
+			nurb = create_nurbs(surf)
+			if nurb:
+				nurb.scale.y = -1
+
+
+	zs = list(curves_by_height.keys())
+	zs.sort()
+	print('heights:', zs)
+	prev_z = None
+	surfs = []
+	for z in zs:
+		for cu in curves_by_height[z]:
+			if prev_z is None or abs(z - prev_z) > 5:
+				surf = []
+				surfs.append(surf)
+				prev_z=z
+			surf.append(cu)
+		prev_z = z
+
+	prev_surf = None
+	next_surf = None
+	for sidx, surf in enumerate(surfs):
+		print('nurbs surface:', surf)
+		if sidx+1 < len(surfs):
+			next_surf = surfs[sidx+1]
+
+		mat = surf[0].data.materials[0]
+
+		if prev_surf and next_surf:
+			curves = [prev_surf[-1]]+surf+[next_surf[0]]
+		elif prev_surf:
+			curves = [prev_surf[-1]]+surf
+		elif next_surf:
+			curves = surf+[next_surf[0]]
+		else:
+			curves = surf
+		nurb = create_nurbs(curves, material=mat)
+
+		prev_surf = surf
 
 	for sidx, width in enumerate(shapes):
 		shape = shapes[width]
@@ -259,30 +356,44 @@ def build_shapes():
 					if tile.tile_index==b.tile_index: continue
 					if b.tile_shape_index: continue
 
-def create_nurbs( curves ):
+def create_nurbs( curves, sharp=False, material=None, color=None ):
 	nurbs_surface = bpy.data.curves.new("NURBS Surface", type='SURFACE') 
 	nurbs_surface.dimensions = '3D' 
-	nurbs_surface.resolution_u = 8 
-	nurbs_surface.resolution_v = 8 	 
+	nurbs_surface.resolution_u = 3
+	nurbs_surface.resolution_v = 3
 	nurbs_obj = bpy.data.objects.new("NURBS", nurbs_surface) 
 	bpy.context.scene.collection.objects.link(nurbs_obj)
 	N = 5 #N = len(curves[1].data.splines[0].bezier_points)
 	C = 0
+	steps = 1
+	if sharp:
+		curves = [curves[0]] + curves + [curves[-1]]
+		steps = 2
 	for cu in curves:
-		if len(cu.data.splines[0].bezier_points) != N: continue
-		C += 1
-		spline = nurbs_surface.splines.new('NURBS')
-		spline.points.add( N-1 )  # -1 because of default point
-		for i in range(N):
-			x,y,z = cu.data.splines[0].bezier_points[i].co
-			spline.points[i].co = mathutils.Vector((x,y,z, 1))
-			spline.points[i].select=True
+		if len(cu.data.splines[0].bezier_points) != N:
+			#raise RuntimeError('invalid curve: %s' % cu)
+			continue
+		for j in range(steps):
+			C += 1
+			spline = nurbs_surface.splines.new('NURBS')
+			spline.points.add( N-1 )  # -1 because of default point
+			for i in range(N):
+				x,y,z = cu.data.splines[0].bezier_points[i].co
+				spline.points[i].co = mathutils.Vector((x,y,z, 1))
+				spline.points[i].select=True
 	print('nurbs: %s x %s' % (C, N))
+	if not C:
+		return None
 	bpy.context.view_layer.objects.active = nurbs_obj
 	bpy.ops.object.mode_set(mode='EDIT') 
 	bpy.ops.curve.make_segment()
 	bpy.ops.object.mode_set(mode='OBJECT') 
-
+	nurbs_obj.show_wire=True
+	if material:
+		nurbs_obj.data.materials.append(material)
+	if color:
+		r,g,b,a = color
+		nurbs_obj.color = [r,g,b,0.8]
 	return nurbs_obj
 
 
@@ -310,14 +421,20 @@ CAM_COORDS = [
 
 ]
 
-def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02):
+def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02, material=None):
 	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	curve_data.bevel_resolution = 1
+	curve_data.resolution_u = 8
 	spline = curve_data.splines.new('BEZIER')
 	spline.bezier_points.add( len(points) - 1)
 	for i, point in enumerate(points):
-		x,y,z = point
+		if len(point)==3:
+			x,y,z = point
+		else:
+			x,y,z,tilt = point
+			spline.bezier_points[i].tilt = tilt
+
 		spline.bezier_points[i].co.x = x
 		spline.bezier_points[i].co.y = y
 		spline.bezier_points[i].co.z = z
@@ -327,6 +444,9 @@ def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02):
 	bpy.context.collection.objects.link(curve_obj)
 	curve_obj.data.extrude = extrude
 	curve_obj.data.bevel_depth=depth
+	if material:
+		curve_obj.data.materials.append(material)
+		curve_obj.show_wire = True
 	return curve_obj
 
 
@@ -363,7 +483,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 	T: transformation matrix
 	label: label of shape type
 	"""
-	#print(tile_transformation)
+	print(tile_transformation)
 	global num_tiles
 	num_tiles += 1
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
@@ -450,6 +570,8 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 		bpy.context.collection.objects.link(obj)
 		obj.tile_index = num_tiles
 		obj.tile_angle = rot
+		obj.tile_x = tile_transformation[0][-1]
+		obj.tile_y = tile_transformation[1][-1]
 
 
 		if (ITER % 2 and scl == 1) or (not ITER % 2 and scl == -1):
@@ -545,6 +667,88 @@ def mkshapes(shapes=5):
 
 	for ob in rem:
 		bpy.data.objects.remove( ob )
+
+
+if bpy:
+	@bpy.utils.register_class
+	class TilesPanel(bpy.types.Panel):
+		bl_idname = "TILES_PT_Tiles_Object_Panel"
+		bl_label = "Spectre Tiles"
+		bl_space_type = "PROPERTIES"
+		bl_region_type = "WINDOW"
+		bl_context = "object"
+
+		def draw(self, context):
+			if not context.active_object: return
+			ob = context.active_object
+			if not ob.tile_index: return
+
+			self.layout.label(text="index=%s" % ob.tile_index)
+			self.layout.label(text="x=%s" % ob.tile_x)
+			self.layout.label(text="y=%s" % ob.tile_y)
+			self.layout.label(text="r=%s" % ob.tile_angle)
+
+			self.layout.prop(ob, 'tile_shape_border')
+			self.layout.prop(ob, 'tile_pair')
+			self.layout.prop(ob, 'tile_collection')
+
+			self.layout.prop(ob, 'tile_shape_left')
+			self.layout.prop(ob, 'tile_shape_right')
+
+	@bpy.utils.register_class
+	class SpecExport(bpy.types.Operator):
+		bl_idname = "spectre.export_json"
+		bl_label = "Spectre export json"
+		@classmethod
+		def poll(cls, context):
+			return True
+		def execute(self, context):
+			export_json(context.world)
+			return {"FINISHED"}
+
+
+	@bpy.utils.register_class
+	class SpecWorldPanel(bpy.types.Panel):
+		bl_idname = "WORLD_PT_Spec_Panel"
+		bl_label = "Spectre Export"
+		bl_space_type = "PROPERTIES"
+		bl_region_type = "WINDOW"
+		bl_context = "world"
+		def draw(self, context):
+			self.layout.operator("spectre.export_json", icon="CONSOLE")
+
+def export_json(world):
+	import json
+	tiles = []
+	shapes = {}
+	for ob in bpy.data.objects:
+		if not ob.tile_index or not ob.tile_collection: continue
+		o = {
+			'name':ob.name,
+			'index':ob.tile_index,
+			'x':ob.tile_x,
+			'y':ob.tile_y,
+		}
+		if ob.tile_mystic:
+			o['mystic']=1
+		if ob.tile_shape_border:
+			o['border']=1
+		if ob.tile_shape_left:
+			o['type']='left'
+		if ob.tile_shape_right:
+			o['type']='right'
+		if ob.tile_pair:
+			o['pair']=ob.tile_pair.name
+
+		if ob.tile_collection.name not in shapes:
+			shapes[ob.tile_collection.name] = []
+
+		shapes[ob.tile_collection.name].append(o)
+
+	tmp = '/tmp/spectre.json'
+	dump = json.dumps(shapes)
+	print(dump)
+	open(tmp, 'wb').write(dump.encode('utf-8'))
 
 if __name__ == '__main__':
 	args = []
