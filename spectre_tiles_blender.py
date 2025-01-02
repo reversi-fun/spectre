@@ -62,6 +62,10 @@ grease_font = {
 }
 
 def smaterial(name, color):
+	if type(name) is list:
+		r,g,b = name
+		name = '%s|%s|%s' % (round(r,3),round(g,3),round(b,3))
+	print(name,color)
 	if name not in bpy.data.materials:
 		m = bpy.data.materials.new(name=name)
 		m.use_nodes = False
@@ -219,42 +223,14 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 
 		shape = shapes[width]
 		shape['pairs'].append([a]+pairs[a])
-
-		x,y,z = a.location
-
-		points = [ [x,y,z, math.radians(a.tile_angle)]]
-
-		if a.tile_mystic:
-			points.append([x,y-3,z,math.radians(a.tile_angle)])
+		if a.location.x < b.location.x:
+			a.tile_shape_left = True
+			b.tile_shape_right = True
 		else:
-			points.append([x,y+3,z,math.radians(a.tile_angle)])
-		rad = 0.1
-		for b in pairs[a]:
-			#print('error:', b.tile_match_error)
-			diff = b.location-a.location
-			mid = a.location + (diff*0.5)
-			if b.tile_mystic:
-				mid.y -= diff.length * 0.5
-			else:
-				mid.y += diff.length * 0.5
-			points.append(mid)
-			x,y,z = b.location
-			if b.tile_mystic:
-				points.append([x,y-3,z, math.radians(-b.tile_angle)])
-			else:
-				points.append([x,y+3,z, math.radians(-b.tile_angle)])
-			#points.append(b.location)
-			points.append([x,y,z, math.radians(-b.tile_angle)])
-			rad = diff.length
-		if iterations==1:
-			extrude=1
-		elif iterations==2:
-			extrude=0.4
-		elif iterations==3:
-			extrude=0.1
-		else:
-			extrude=0.02
-		cu = create_bezier_curve(points, radius=rad*0.1, extrude=extrude, depth=0.01, material=a.data.materials[0])
+			a.tile_shape_right = True
+			b.tile_shape_left = True
+
+		cu,points = pairs_to_curve( shape['pairs'][-1], iterations=iterations )
 		shape['curves'].append(cu)
 		if len(points)==5:
 			curves.append(cu)
@@ -355,6 +331,45 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 					if not b.tile_index: continue
 					if tile.tile_index==b.tile_index: continue
 					if b.tile_shape_index: continue
+
+def pairs_to_curve(pairs, iterations=2):
+	a = pairs[0]
+	x,y,z = a.location
+
+	points = [ [x,y,z, math.radians(a.tile_angle)]]
+
+	if a.tile_mystic:
+		points.append([x,y-3,z,math.radians(a.tile_angle)])
+	else:
+		points.append([x,y+3,z,math.radians(a.tile_angle)])
+	rad = 0.1
+	for b in pairs[1:]:
+		#print('error:', b.tile_match_error)
+		diff = b.location-a.location
+		mid = a.location + (diff*0.5)
+		if b.tile_mystic:
+			mid.y -= diff.length * 0.5
+		else:
+			mid.y += diff.length * 0.5
+		points.append(mid)
+		x,y,z = b.location
+		if b.tile_mystic:
+			points.append([x,y-3,z, math.radians(-b.tile_angle)])
+		else:
+			points.append([x,y+3,z, math.radians(-b.tile_angle)])
+		#points.append(b.location)
+		points.append([x,y,z, math.radians(-b.tile_angle)])
+		rad = diff.length
+	if iterations==1:
+		extrude=1
+	elif iterations==2:
+		extrude=0.4
+	elif iterations==3:
+		extrude=0.1
+	else:
+		extrude=0.02
+	cu = create_bezier_curve(points, radius=rad*0.1, extrude=extrude, depth=0.01, material=a.data.materials[0])
+	return cu, points
 
 def create_nurbs( curves, sharp=False, material=None, color=None ):
 	nurbs_surface = bpy.data.curves.new("NURBS Surface", type='SURFACE') 
@@ -622,13 +637,17 @@ def import_json( jfile, scale=0.1 ):
 	dump = json.loads(open(jfile).read())
 	print(dump)
 	for shape_name in dump:
-		print(shape_name)
+		print('SHAPE:', shape_name)
+		tiles = {}
+		bpy.ops.object.empty_add(type="SINGLE_ARROW")
+		root = bpy.context.active_object
+		root.name='SHAPE:%s' % shape_name
+
 		for o in dump[shape_name]:
-			print(o['name'])
+			print('	TILE:', o['name'])
 			trans = spectre.trot( o['angle'] )
 			trans[0][-1] = o['x']
 			trans[1][-1] = o['y']
-			print(trans)
 			if 'mystic' in o:
 				vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
 			else:
@@ -645,13 +664,43 @@ def import_json( jfile, scale=0.1 ):
 
 			mesh = bpy.data.meshes.new(o['name'])
 			mesh.from_pydata(verts, [], faces)
+			mesh.materials.append(smaterial(o['color'], o['color']))
 			obj = bpy.data.objects.new(o['name'], mesh)
 			bpy.context.collection.objects.link(obj)
+			tiles[ obj ] = o
 			obj.tile_index = o['index']
 			obj.tile_angle = o['angle']
 			obj.tile_x = o['x']
 			obj.tile_y = o['y']
+			if 'mystic' in o:
+				obj.tile_mystic=True
+			if 'type' in o:
+				if o['type']=='left':
+					obj.tile_shape_left=True
+				elif o['type']=='right':
+					obj.tile_shape_right=True
 
+			bpy.context.view_layer.objects.active = obj
+			obj.select_set(True)
+			bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_MASS")
+
+			bpy.ops.object.empty_add(type="ARROWS")
+			ob = bpy.context.active_object
+			ob.parent = obj
+			ob.rotation_euler.y = math.radians(o['angle'])
+
+			obj.parent=root
+
+		for tile in tiles:
+			if 'pair' in tiles[tile]:
+				pname = tiles[tile]['pair']
+				if pname in bpy.data.objects:
+					tile.tile_pair = bpy.data.objects[pname]
+
+					cu,points = pairs_to_curve( [tile, tile.tile_pair] )
+
+				else:
+					print("WARN: missing tile pair:", pname)
 
 
 def mktiles(vertices, scale=1.0):
