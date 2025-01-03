@@ -656,7 +656,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
-def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False ):
+def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False ):
 	import json
 	dump = json.loads(open(jfile).read())
 	print(dump)
@@ -822,16 +822,18 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False ):
 			nurb = create_nurbs([curves[0]]+curves+[curves[-1]], material=mat)
 			nurb.parent=root
 
-		if len(left):
-			trace_tiles(left, dump['tiles'])
-		if len(right):
-			trace_tiles(right, dump['tiles'])
+		if grow_patches:
+			if len(left):
+				trace_tiles(left, dump['tiles'])
+			if len(right):
+				trace_tiles(right, dump['tiles'])
 
 		if len(left_bor) > 1:
 			cu = trace_tiles(left_bor+left)
 			#cu.data.offset = -0.1
-			cu.data.extrude = 0.5
-			cu.location.y = 0.1
+			if cu.type=='CURVE':
+				cu.data.extrude = 0.5
+				cu.location.y = 0.1
 		if len(right_bor) > 1:
 			cu = trace_tiles(right_bor+right)
 			#cu.data.offset = -0.1
@@ -900,7 +902,7 @@ def trace_tiles( tiles, space_tiles=None ):
 	bpy.context.view_layer.objects.active = ob
 	if 1:
 		mod = ob.modifiers.new(name='merge', type="WELD")
-		#bpy.ops.object.modifier_apply(modifier=mod.name)
+		bpy.ops.object.modifier_apply(modifier=mod.name)
 
 		#mod = ob.modifiers.new(name='clean', type="DECIMATE")
 		#mod.ratio = 0.98
@@ -909,14 +911,65 @@ def trace_tiles( tiles, space_tiles=None ):
 		#mod = ob.modifiers.new(name='smooth', type="LAPLACIANSMOOTH")
 		#mod.lambda_border=1
 
-		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
-		mod.factor=1
+		#mod = ob.modifiers.new(name='smooth', type="SMOOTH")
+		#mod.factor=1
 
-	ob.location.y = 1 + random()
+	trace_inner_edges(ob)
+
+	ob.location.y = -1# + random()
 	return ob
 
 	bpy.ops.object.convert(target="CURVE")
 	return ob
+
+def trace_inner_edges( ob ):
+	e = extract_inner_edges_and_faces(ob.data)
+
+def extract_inner_edges_and_faces(mesh):
+	import bmesh
+	bm = bmesh.new()
+	bm.from_mesh(mesh)
+	bm.verts.ensure_lookup_table()
+	bm.edges.ensure_lookup_table()
+	vertices = []
+	edges = []
+	faces = []
+	vertex_map = {}
+	# Find inner edges and create vertex/edge lists
+	for edge in bm.edges:
+		if len(edge.link_faces) == 2: 
+			v1 = edge.verts[0]
+			v2 = edge.verts[1]
+			if v1.index not in vertex_map:
+				vertex_map[v1.index] = len(vertices)
+				vertices.append(v1.co.copy())
+			if v2.index not in vertex_map:
+				vertex_map[v2.index] = len(vertices)
+				vertices.append(v2.co.copy())
+			v1_index = vertex_map[v1.index]
+			v2_index = vertex_map[v2.index]
+			edges.append((v1_index, v2_index))
+	# Find and store faces that contain only inner edges
+	for face in bm.faces:
+		all_inner_edges = True
+		for edge in face.edges:
+			if len(edge.link_faces) != 2:
+				all_inner_edges = False
+				break
+		if all_inner_edges:
+			face_indices = [vertex_map[v.index] for v in face.verts]
+			faces.append(face_indices)
+			for i in range(len(face_indices) - 1):
+				edges.append((face_indices[i], face_indices[i+1]))
+			edges.append((face_indices[-1], face_indices[0])) 
+
+	new_mesh = bpy.data.meshes.new("InnerEdges")
+	new_mesh.from_pydata(vertices, edges, faces) 
+	new_mesh.update()
+	new_object = bpy.data.objects.new("InnerEdges", new_mesh)
+	bpy.context.collection.objects.link(new_object)
+	bm.free()
+	return new_object
 
 
 def mktiles(vertices, scale=1.0):
