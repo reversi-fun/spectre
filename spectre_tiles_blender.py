@@ -27,9 +27,13 @@ else:
 
 if bpy:
 	import spectre
+	bpy.types.World.tile_active_collection = bpy.props.PointerProperty(name="active shape", type=bpy.types.Collection)
+	bpy.types.World.tile_export_path = bpy.props.StringProperty(name="export path")
+	bpy.types.World.tile_import_path = bpy.props.StringProperty(name="import path")
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
 	bpy.types.Object.tile_x = bpy.props.FloatProperty(name='tile x')
 	bpy.types.Object.tile_y = bpy.props.FloatProperty(name='tile y')
+	bpy.types.Object.tile_shape_join = bpy.props.BoolProperty(name="join")
 	bpy.types.Object.tile_shape_left = bpy.props.BoolProperty(name="left")
 	bpy.types.Object.tile_shape_right = bpy.props.BoolProperty(name="right")
 	bpy.types.Object.tile_collection = bpy.props.PointerProperty(name="shape", type=bpy.types.Collection)
@@ -47,6 +51,7 @@ RENDER_TEST = False
 DEBUG_NUM = True
 USE_PRINT = False
 MAKE_SHAPES = True
+USE_GPEN = False
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -106,11 +111,14 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 
 	print(f"supertiling loop took {round(time1, 4)} seconds")
 
-	bpy.ops.object.gpencil_add(type="EMPTY")
-	g = bpy.context.object
-	#glayer = g.data.layers.new("notes", set_active=True)
-	#gframe = glayer.frames.new(1)
-	g.data.layers[0].info = 'notes'
+	if USE_GPEN:
+		bpy.ops.object.gpencil_add(type="EMPTY")
+		g = bpy.context.object
+		#glayer = g.data.layers.new("notes", set_active=True)
+		#gframe = glayer.frames.new(1)
+		g.data.layers[0].info = 'notes'
+	else:
+		g = None
 
 	start = time()
 	spectreTiles["Delta"].forEachTile( lambda a,b: plotVertices(a,b,scale=0.1, gpencil=g))
@@ -187,7 +195,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 	if MAKE_SHAPES:
 		build_shapes(iterations=iterations)
 
-def build_shapes(iterations=3, sharp_nurb_shapes=False):
+def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 	pairs = {}
 	tiles = []
 	for a in bpy.data.objects:
@@ -232,23 +240,25 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 				a.tile_shape_right = True
 				b.tile_shape_left = True
 
-		cu,points = pairs_to_curve( shape['pairs'][-1], iterations=iterations )
-		shape['curves'].append(cu)
-		if len(points)==5:
-			curves.append(cu)
+		if gizmos:
+			cu,points = pairs_to_curve( shape['pairs'][-1], iterations=iterations )
+			shape['curves'].append(cu)
+			if len(points)==5:
+				curves.append(cu)
 
-		z = a.location.z
-		if z not in curves_by_height:
-			curves_by_height[z] = []
-		curves_by_height[z].append(cu)
+			z = a.location.z
+			if z not in curves_by_height:
+				curves_by_height[z] = []
+			curves_by_height[z].append(cu)
 
-		x = a.location.x
-		if x not in curves_by_x:
-			curves_by_x[x] = []
-		curves_by_x[x].append(cu)
+			x = a.location.x
+			if x not in curves_by_x:
+				curves_by_x[x] = []
+			curves_by_x[x].append(cu)
 
-	nurb = create_nurbs( curves )
-	nurb.scale.y = -1
+	if curves:
+		nurb = create_nurbs( curves )
+		nurb.scale.y = -1
 
 	for sidx, width in enumerate(shapes):
 		shape = shapes[width]
@@ -265,7 +275,9 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 		#print(width, shape)
 		tag = 'shape(%s)' % sidx
 		if tag not in bpy.data.collections:
-			bpy.data.collections.new(tag)
+			col = bpy.data.collections.new(tag)
+			if not bpy.data.worlds[0].tile_active_collection:
+				bpy.data.worlds[0].tile_active_collection = col
 		for pair in shape['pairs']:
 			for tile in pair:
 				tile.color = shape['color']
@@ -293,51 +305,51 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False):
 			if nurb:
 				nurb.scale.y = -1
 
+	if gizmos:
+		zs = list(curves_by_height.keys())
+		zs.sort()
+		print('heights:', zs)
+		prev_z = None
+		surfs = []
+		for z in zs:
+			for cu in curves_by_height[z]:
+				if prev_z is None or abs(z - prev_z) > 5:
+					surf = []
+					surfs.append(surf)
+					prev_z=z
+				surf.append(cu)
+			prev_z = z
 
-	zs = list(curves_by_height.keys())
-	zs.sort()
-	print('heights:', zs)
-	prev_z = None
-	surfs = []
-	for z in zs:
-		for cu in curves_by_height[z]:
-			if prev_z is None or abs(z - prev_z) > 5:
-				surf = []
-				surfs.append(surf)
-				prev_z=z
-			surf.append(cu)
-		prev_z = z
+		prev_surf = None
+		next_surf = None
+		for sidx, surf in enumerate(surfs):
+			print('nurbs surface:', surf)
+			if sidx+1 < len(surfs):
+				next_surf = surfs[sidx+1]
 
-	prev_surf = None
-	next_surf = None
-	for sidx, surf in enumerate(surfs):
-		print('nurbs surface:', surf)
-		if sidx+1 < len(surfs):
-			next_surf = surfs[sidx+1]
+			mat = surf[0].data.materials[0]
 
-		mat = surf[0].data.materials[0]
+			if prev_surf and next_surf:
+				curves = [prev_surf[-1]]+surf+[next_surf[0]]
+			elif prev_surf:
+				curves = [prev_surf[-1]]+surf
+			elif next_surf:
+				curves = surf+[next_surf[0]]
+			else:
+				curves = surf
+			nurb = create_nurbs(curves, material=mat)
 
-		if prev_surf and next_surf:
-			curves = [prev_surf[-1]]+surf+[next_surf[0]]
-		elif prev_surf:
-			curves = [prev_surf[-1]]+surf
-		elif next_surf:
-			curves = surf+[next_surf[0]]
-		else:
-			curves = surf
-		nurb = create_nurbs(curves, material=mat)
+			prev_surf = surf
 
-		prev_surf = surf
-
-	for sidx, width in enumerate(shapes):
-		shape = shapes[width]
-		for pair in shape['pairs']:
-			for tile in pair:
-				near = []
-				for b in bpy.data.objects:
-					if not b.tile_index: continue
-					if tile.tile_index==b.tile_index: continue
-					if b.tile_shape_index: continue
+	#for sidx, width in enumerate(shapes):
+	#	shape = shapes[width]
+	#	for pair in shape['pairs']:
+	#		for tile in pair:
+	#			near = []
+	#			for b in bpy.data.objects:
+	#				if not b.tile_index: continue
+	#				if tile.tile_index==b.tile_index: continue
+	#				if b.tile_shape_index: continue
 
 def pairs_to_curve(pairs, iterations=2):
 	a = pairs[0]
@@ -501,7 +513,7 @@ def create_linear_curve(points, radius=0.5, start_rad=1, end_rad=1):
 
 
 num_tiles = 0
-def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True, gpencil=None, use_mesh=True):
+def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=True, gpencil=None, use_mesh=True):
 	"""
 	T: transformation matrix
 	label: label of shape type
@@ -642,14 +654,18 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
-def import_json( jfile, scale=0.1, show_num=True ):
+def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False ):
 	import json
 	dump = json.loads(open(jfile).read())
 	print(dump)
 	if len(dump['tiles']):
 		bpy.ops.object.gpencil_add(type="EMPTY")
-		gpencil = bpy.context.object
+		gpencil = bpy.context.active_object
 		gpencil.data.layers[0].info = 'notes'
+		mod = gpencil.grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
+		mod.level = 2
+		mod = gpencil.grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
+		mod.factor=1.0
 
 	for o in dump['tiles']:
 		trans = spectre.trot( o['angle'] )
@@ -674,7 +690,7 @@ def import_json( jfile, scale=0.1, show_num=True ):
 		stroke = frame.strokes.new()
 		stroke.points.add(count=len(verts))
 		stroke.line_width = line_width
-		stroke.use_cyclic = True
+		stroke.use_cyclic = gpencil_cyclic
 		ax = ay = az = 0.0
 		for i,v in enumerate(verts):
 			x,y,z = v
@@ -738,6 +754,7 @@ def import_json( jfile, scale=0.1, show_num=True ):
 			obj = bpy.data.objects.new(o['name'], mesh)
 			bpy.context.collection.objects.link(obj)
 			tiles[ obj ] = o
+			obj.show_wire=True
 			obj.tile_index = o['index']
 			obj.tile_angle = o['angle']
 			obj.tile_x = o['x']
@@ -754,6 +771,8 @@ def import_json( jfile, scale=0.1, show_num=True ):
 					obj.tile_shape_left=True
 				elif o['type']=='right':
 					obj.tile_shape_right=True
+			if 'join' in o:
+				obj.tile_shape_join=True
 
 			bpy.context.view_layer.objects.active = obj
 			obj.select_set(True)
@@ -801,11 +820,10 @@ def import_json( jfile, scale=0.1, show_num=True ):
 			nurb = create_nurbs([curves[0]]+curves+[curves[-1]], material=mat)
 			nurb.parent=root
 
-		if False:
-			if len(left) > 1:
-				trace_tiles(left)
-			if len(right) > 1:
-				trace_tiles(right)
+		if len(left):
+			trace_tiles(left, dump['tiles'])
+		if len(right):
+			trace_tiles(right, dump['tiles'])
 
 		if len(left_bor) > 1:
 			cu = trace_tiles(left_bor+left)
@@ -818,16 +836,59 @@ def import_json( jfile, scale=0.1, show_num=True ):
 			cu.data.extrude = 0.5
 			cu.location.y = 0.1
 
-def trace_tiles( tiles ):
+def create_mesh_tile(o, scale=0.1):
+	trans = spectre.trot( o['angle'] )
+	trans[0][-1] = o['x']
+	trans[1][-1] = o['y']
+	if 'mystic' in o:
+		vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+	else:
+		vertices = (spectre.SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+
+	verts = []
+	for v in vertices:
+		x,y = v
+		verts.append([x*scale,0,y*scale])
+
+	faces = [
+		list(range(len(verts)))
+	]
+
+	mesh = bpy.data.meshes.new(o['name'])
+	mesh.from_pydata(verts, [], faces)
+	mesh.materials.append(smaterial(o['color'], o['color']))
+	obj = bpy.data.objects.new(o['name'], mesh)
+	bpy.context.collection.objects.link(obj)
+	return obj
+
+def trace_tiles( tiles, space_tiles=None ):
+	print('trace_tiles:', tiles)
 	bpy.ops.object.select_all(action='DESELECT')
 	tmp = []
+	ax = ay = 0.0
 	for tile in tiles:
+		ax += tile.tile_x
+		ay += tile.tile_y
 		copy = tile.copy()
 		copy.data= tile.data.copy()
 		tmp.append( copy )
 		bpy.context.scene.collection.objects.link(copy)
 	tiles = tmp
 	bpy.context.view_layer.objects.active = tiles[0]
+
+	if space_tiles:
+		ax /= len(tiles)
+		ay /= len(tiles)
+		print('shape center: %s : %s' %(ax,ay))
+		for o in space_tiles:
+			dx = abs(o['x']-ax)
+			dy = abs(o['y']-ay)
+			d = (dx+dy)/2
+			#print('delta: %s : %s : %s' % (dx,dy, d))
+			if d < 28:
+				tmp = create_mesh_tile(o)
+				tiles.append(tmp)
+
 	for ob in tiles:
 		ob.select_set(True)
 
@@ -839,9 +900,18 @@ def trace_tiles( tiles ):
 		mod = ob.modifiers.new(name='merge', type="WELD")
 		#bpy.ops.object.modifier_apply(modifier=mod.name)
 
-		mod = ob.modifiers.new(name='clean', type="DECIMATE")
-		mod.ratio = 0.98
+		#mod = ob.modifiers.new(name='clean', type="DECIMATE")
+		#mod.ratio = 0.98
 		#bpy.ops.object.modifier_apply(modifier=mod.name)
+
+		#mod = ob.modifiers.new(name='smooth', type="LAPLACIANSMOOTH")
+		#mod.lambda_border=1
+
+		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
+		mod.factor=1
+
+	ob.location.y = 1 + random()
+	return ob
 
 	bpy.ops.object.convert(target="CURVE")
 	return ob
@@ -925,15 +995,24 @@ if bpy:
 			row.prop(ob, 'tile_shape_border_left', text="<|")
 			row.prop(ob, 'tile_shape_border_right', text="|>")
 			row.prop(ob, 'tile_shape_left', text="<")
+			row.prop(ob, 'tile_shape_join', text="|")
 			row.prop(ob, 'tile_shape_right', text=">")
 
 			row = self.layout.row()
-			row.operator('spectre.tile_left')
-			row.operator('spectre.tile_right')
+			if ob.tile_shape_left:
+				row.operator('spectre.tile_left', text="LEFT✔")
+			else:
+				row.operator('spectre.tile_left')
+			if ob.tile_shape_join:
+				row.operator('spectre.tile_join', text="JOIN✔")
+			else:
+				row.operator('spectre.tile_join')
+			if ob.tile_shape_right:
+				row.operator('spectre.tile_right', text="RIGHT✔")
+			else:
+				row.operator('spectre.tile_right')
 
-			self.layout.label(text="x=%s" % ob.tile_x)
-			self.layout.label(text="y=%s" % ob.tile_y)
-			self.layout.label(text="r=%s" % ob.tile_angle)
+			self.layout.label(text="x=%s y=%s angle=%s" % (round(ob.tile_x,2), round(ob.tile_y), ob.tile_angle))
 
 			self.layout.prop(ob, 'tile_pair')
 
@@ -949,6 +1028,22 @@ if bpy:
 			return {"FINISHED"}
 
 	@bpy.utils.register_class
+	class SpecImport(bpy.types.Operator):
+		bl_idname = "spectre.import_json"
+		bl_label = "Spectre import json"
+		@classmethod
+		def poll(cls, context):
+			return True
+		def execute(self, context):
+			path = context.world.tile_import_path.strip()
+			if not path: path = '/tmp/spectre.json'
+			if path.startswith('~'): path = os.path.expanduser(path)
+			if not path.endswith('.json'): path += '.json'
+			import_json(path)
+			return {"FINISHED"}
+
+
+	@bpy.utils.register_class
 	class SpecLeft(bpy.types.Operator):
 		bl_idname = "spectre.tile_left"
 		bl_label = "Left"
@@ -960,11 +1055,15 @@ if bpy:
 			ob.tile_shape_left = True
 			ob.tile_shape_right = False
 			if not ob.tile_collection:
-				if 'shape(0)' in bpy.data.collections:
-					ob.tile_collection=bpy.data.collections['shape(0)']
+				if bpy.data.worlds[0].tile_active_collection:
+					ob.tile_collection=bpy.data.worlds[0].tile_active_collection
 			if ob.data.materials[0].name != 'LEFT':
+				ob.data.materials.clear()
 				mat = smaterial('LEFT', [1,0,0])
-				ob.data.materials[0]=mat
+				ob.data.materials.append(mat)
+			ob.color = [1,0,0, 1]
+			if ob.tile_pair:
+				ob.tile_pair.select_set(True)
 			return {"FINISHED"}
 
 	@bpy.utils.register_class
@@ -978,9 +1077,36 @@ if bpy:
 			ob = context.active_object
 			ob.tile_shape_right = True
 			ob.tile_shape_left = False
+			if not ob.tile_collection:
+				if bpy.data.worlds[0].tile_active_collection:
+					ob.tile_collection=bpy.data.worlds[0].tile_active_collection
 			if ob.data.materials[0].name != 'RIGHT':
+				ob.data.materials.clear()
 				mat = smaterial('RIGHT', [0,0,1])
-				ob.data.materials[0]=mat
+				ob.data.materials.append(mat)
+			ob.color = [0,0,1, 1]
+			if ob.tile_pair:
+				ob.tile_pair.select_set(True)
+			return {"FINISHED"}
+
+	@bpy.utils.register_class
+	class SpecJoin(bpy.types.Operator):
+		bl_idname = "spectre.tile_join"
+		bl_label = "Join"
+		@classmethod
+		def poll(cls, context):
+			return context.active_object
+		def execute(self, context):
+			ob = context.active_object
+			ob.tile_shape_join = True
+			if not ob.tile_collection:
+				if bpy.data.worlds[0].tile_active_collection:
+					ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+			if ob.data.materials[0].name != 'JOIN':
+				ob.data.materials.clear()
+				mat = smaterial('JOIN', [0,1,0])
+				ob.data.materials.append(mat)
+			ob.color = [0,1,0, 1]
 			return {"FINISHED"}
 
 
@@ -993,7 +1119,11 @@ if bpy:
 		bl_region_type = "WINDOW"
 		bl_context = "world"
 		def draw(self, context):
+			self.layout.prop(context.world, 'tile_active_collection')
+			self.layout.prop(context.world, 'tile_export_path')
 			self.layout.operator("spectre.export_json", icon="CONSOLE")
+			self.layout.prop(context.world, 'tile_import_path')
+			self.layout.operator("spectre.import_json", icon="CONSOLE")
 
 def export_json(world):
 	import json
@@ -1020,6 +1150,8 @@ def export_json(world):
 			o['type']='left'
 		if ob.tile_shape_right:
 			o['type']='right'
+		if ob.tile_shape_join:
+			o['join']=1
 		if ob.tile_pair:
 			o['pair']=ob.tile_pair.name
 
@@ -1030,9 +1162,15 @@ def export_json(world):
 		elif ob.select_get():
 			tiles.append( o )
 
-	tmp = '/tmp/spectre.json'
+	if world.tile_export_path.strip():
+		tmp = world.tile_export_path.strip()
+		if tmp.startswith('~'): tmp = os.path.expanduser(tmp)
+		if not tmp.endswith('.json'): tmp += '.json'
+	else:
+		tmp = '/tmp/spectre.json'
 	dump = json.dumps( {'shapes':shapes, 'tiles':tiles} )
-	print(dump)
+	#print(dump)
+	print('saving:', tmp)
 	open(tmp, 'wb').write(dump.encode('utf-8'))
 
 
@@ -1097,5 +1235,5 @@ if __name__ == '__main__':
 		build_tiles(**kwargs)
 		bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 
-	else:
-		build_tiles(**kwargs)
+	#else:
+	#	build_tiles(**kwargs)
