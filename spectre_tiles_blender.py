@@ -30,6 +30,8 @@ if bpy:
 	bpy.types.World.tile_active_collection = bpy.props.PointerProperty(name="active shape", type=bpy.types.Collection)
 	bpy.types.World.tile_export_path = bpy.props.StringProperty(name="export path")
 	bpy.types.World.tile_import_path = bpy.props.StringProperty(name="import path")
+	bpy.types.World.tile_generate_steps = bpy.props.IntProperty(name="generate steps", default=2)
+	bpy.types.World.tile_generate_gizmos = bpy.props.BoolProperty(name="generate gizmos")
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
 	bpy.types.Object.tile_x = bpy.props.FloatProperty(name='tile x')
 	bpy.types.Object.tile_y = bpy.props.FloatProperty(name='tile y')
@@ -84,7 +86,7 @@ def smaterial(name, color):
 
 TRACE = []
 ITER = 0
-def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
+def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=False ):
 	global TRACE, num_tiles, ITER
 	ITER = iterations
 	num_tiles = 0
@@ -193,7 +195,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False ):
 			bpy.ops.render.render(write_still=True)
 
 	if MAKE_SHAPES:
-		build_shapes(iterations=iterations)
+		build_shapes(iterations=iterations, gizmos=gizmos)
 
 def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 	pairs = {}
@@ -973,7 +975,7 @@ if bpy:
 	@bpy.utils.register_class
 	class TilesPanel(bpy.types.Panel):
 		bl_idname = "TILES_PT_Tiles_Object_Panel"
-		bl_label = "Spectre Tiles"
+		bl_label = "Spectre Tile"
 		bl_space_type = "PROPERTIES"
 		bl_region_type = "WINDOW"
 		bl_context = "object"
@@ -1064,6 +1066,20 @@ if bpy:
 			ob.color = [1,0,0, 1]
 			if ob.tile_pair:
 				ob.tile_pair.select_set(True)
+			if ob.tile_pair and not ob.tile_pair.tile_shape_right:
+				ob = ob.tile_pair
+				ob.tile_shape_right=True
+				if not ob.tile_collection:
+					if bpy.data.worlds[0].tile_active_collection:
+						ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+
+				if ob.data.materials[0].name != 'RIGHT':
+					ob.data.materials.clear()
+					mat = smaterial('RIGHT', [0,0,1])
+					ob.data.materials.append(mat)
+				ob.color = [0,0,1, 1]
+
+
 			return {"FINISHED"}
 
 	@bpy.utils.register_class
@@ -1087,6 +1103,20 @@ if bpy:
 			ob.color = [0,0,1, 1]
 			if ob.tile_pair:
 				ob.tile_pair.select_set(True)
+
+			if ob.tile_pair and not ob.tile_pair.tile_shape_left:
+				ob = ob.tile_pair
+				ob.tile_shape_left=True
+				if not ob.tile_collection:
+					if bpy.data.worlds[0].tile_active_collection:
+						ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+
+				if ob.data.materials[0].name != 'LEFT':
+					ob.data.materials.clear()
+					mat = smaterial('LEFT', [1,0,0])
+					ob.data.materials.append(mat)
+				ob.color = [1,0,0, 1]
+
 			return {"FINISHED"}
 
 	@bpy.utils.register_class
@@ -1109,21 +1139,52 @@ if bpy:
 			ob.color = [0,1,0, 1]
 			return {"FINISHED"}
 
+	@bpy.utils.register_class
+	class SpecGenerate(bpy.types.Operator):
+		bl_idname = "spectre.generate"
+		bl_label = "Generate"
+		@classmethod
+		def poll(cls, context):
+			return True
+		def execute(self, context):
+			build_tiles(
+				iterations=bpy.data.worlds[0].tile_generate_steps,
+				gizmos=bpy.data.worlds[0].tile_generate_gizmos,
+			)
+
+			return {"FINISHED"}
+
 
 
 	@bpy.utils.register_class
 	class SpecWorldPanel(bpy.types.Panel):
 		bl_idname = "WORLD_PT_Spec_Panel"
-		bl_label = "Spectre Export"
+		bl_label = "Spectre Tiles"
 		bl_space_type = "PROPERTIES"
 		bl_region_type = "WINDOW"
 		bl_context = "world"
 		def draw(self, context):
 			self.layout.prop(context.world, 'tile_active_collection')
-			self.layout.prop(context.world, 'tile_export_path')
-			self.layout.operator("spectre.export_json", icon="CONSOLE")
-			self.layout.prop(context.world, 'tile_import_path')
-			self.layout.operator("spectre.import_json", icon="CONSOLE")
+
+			box = self.layout.box()
+			box.label(text="Export:")
+
+			box.prop(context.world, 'tile_export_path')
+			box.operator("spectre.export_json", icon="CONSOLE")
+
+			box = self.layout.box()
+			box.label(text="Import:")
+
+			box.prop(context.world, 'tile_import_path')
+			box.operator("spectre.import_json", icon="CONSOLE")
+
+			box = self.layout.box()
+			box.label(text="Generate:")
+			row = box.row()
+			row.prop(context.world, 'tile_generate_steps')
+			row.prop(context.world, 'tile_generate_gizmos')
+			box.operator("spectre.generate", icon="CONSOLE")
+
 
 def export_json(world):
 	import json
