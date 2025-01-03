@@ -511,6 +511,8 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 	num_tiles += 1
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
 	color_array = spectre.get_color_array(tile_transformation, label)
+	color_array *= 0.5
+	color_array += 0.5
 	rot,scl = spectre.trot_inv(tile_transformation)
 
 
@@ -640,18 +642,78 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=True, center=True
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
-def import_json( jfile, scale=0.1 ):
+def import_json( jfile, scale=0.1, show_num=True ):
 	import json
 	dump = json.loads(open(jfile).read())
 	print(dump)
-	for shape_name in dump:
+	if len(dump['tiles']):
+		bpy.ops.object.gpencil_add(type="EMPTY")
+		gpencil = bpy.context.object
+		gpencil.data.layers[0].info = 'notes'
+
+	for o in dump['tiles']:
+		trans = spectre.trot( o['angle'] )
+		trans[0][-1] = o['x']
+		trans[1][-1] = o['y']
+		if 'mystic' in o:
+			vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+		else:
+			vertices = (spectre.SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
+
+		verts = []
+		for v in vertices:
+			x,y = v
+			verts.append([x,0,y])
+
+		line_width = 100
+		label = o['name'].split('(')[0]
+		if label not in gpencil.data.layers:
+			layer = gpencil.data.layers.new(label)
+			frame = layer.frames.new(1)
+		frame = gpencil.data.layers[label].frames[0]
+		stroke = frame.strokes.new()
+		stroke.points.add(count=len(verts))
+		stroke.line_width = line_width
+		stroke.use_cyclic = True
+		ax = ay = az = 0.0
+		for i,v in enumerate(verts):
+			x,y,z = v
+			stroke.points[i].co.x = x * scale
+			stroke.points[i].co.y = y * scale
+			stroke.points[i].co.z = z * scale
+			ax += x
+			az += z
+		ax /= len(verts)
+		az /= len(verts)
+		if show_num:
+			frame = gpencil.data.layers['notes'].frames[0]
+			X = 0
+			info = str(o['index'])
+			if 'mystic' in o:  ## this is when iterations is odd
+				info = '★' + info
+			for char in info:
+				assert char in grease_font
+				arr = grease_font[char]
+				stroke = frame.strokes.new()
+				stroke.points.add(count=len(arr))
+				stroke.line_width = 30
+				for i,v in enumerate(arr):
+					x,y = v
+					x*=2
+					y*=2
+					stroke.points[i].co.x = (x+ax+X) * scale
+					stroke.points[i].co.z = (y+az) * scale
+				X += 2.0
+
+
+	for shape_name in dump['shapes']:
 		print('SHAPE:', shape_name)
 		tiles = {}
 		bpy.ops.object.empty_add(type="SINGLE_ARROW")
 		root = bpy.context.active_object
 		root.name='SHAPE:%s' % shape_name
 
-		for o in dump[shape_name]:
+		for o in dump['shapes'][shape_name]:
 			print('	TILE:', o['name'])
 			trans = spectre.trot( o['angle'] )
 			trans[0][-1] = o['x']
@@ -857,20 +919,23 @@ if bpy:
 			if not ob.tile_index: return
 
 			self.layout.label(text="index=%s" % ob.tile_index)
+			self.layout.prop(ob, 'tile_collection')
+
+			row = self.layout.row()
+			row.prop(ob, 'tile_shape_border_left', text="<|")
+			row.prop(ob, 'tile_shape_border_right', text="|>")
+			row.prop(ob, 'tile_shape_left', text="<")
+			row.prop(ob, 'tile_shape_right', text=">")
+
+			row = self.layout.row()
+			row.operator('spectre.tile_left')
+			row.operator('spectre.tile_right')
+
 			self.layout.label(text="x=%s" % ob.tile_x)
 			self.layout.label(text="y=%s" % ob.tile_y)
 			self.layout.label(text="r=%s" % ob.tile_angle)
 
 			self.layout.prop(ob, 'tile_pair')
-			self.layout.prop(ob, 'tile_collection')
-
-			row = self.layout.row()
-			row.prop(ob, 'tile_shape_border_left')
-			row.prop(ob, 'tile_shape_border_right')
-
-			row = self.layout.row()
-			row.prop(ob, 'tile_shape_left')
-			row.prop(ob, 'tile_shape_right')
 
 	@bpy.utils.register_class
 	class SpecExport(bpy.types.Operator):
@@ -882,6 +947,42 @@ if bpy:
 		def execute(self, context):
 			export_json(context.world)
 			return {"FINISHED"}
+
+	@bpy.utils.register_class
+	class SpecLeft(bpy.types.Operator):
+		bl_idname = "spectre.tile_left"
+		bl_label = "Left"
+		@classmethod
+		def poll(cls, context):
+			return context.active_object
+		def execute(self, context):
+			ob = context.active_object
+			ob.tile_shape_left = True
+			ob.tile_shape_right = False
+			if not ob.tile_collection:
+				if 'shape(0)' in bpy.data.collections:
+					ob.tile_collection=bpy.data.collections['shape(0)']
+			if ob.data.materials[0].name != 'LEFT':
+				mat = smaterial('LEFT', [1,0,0])
+				ob.data.materials[0]=mat
+			return {"FINISHED"}
+
+	@bpy.utils.register_class
+	class SpecRight(bpy.types.Operator):
+		bl_idname = "spectre.tile_right"
+		bl_label = "Right"
+		@classmethod
+		def poll(cls, context):
+			return context.active_object
+		def execute(self, context):
+			ob = context.active_object
+			ob.tile_shape_right = True
+			ob.tile_shape_left = False
+			if ob.data.materials[0].name != 'RIGHT':
+				mat = smaterial('RIGHT', [0,0,1])
+				ob.data.materials[0]=mat
+			return {"FINISHED"}
+
 
 
 	@bpy.utils.register_class
@@ -899,7 +1000,7 @@ def export_json(world):
 	tiles = []
 	shapes = {}
 	for ob in bpy.data.objects:
-		if not ob.tile_index or not ob.tile_collection: continue
+		if not ob.tile_index: continue
 		r,g,b,a = ob.data.materials[0].diffuse_color
 		o = {
 			'name':ob.name,
@@ -922,13 +1023,15 @@ def export_json(world):
 		if ob.tile_pair:
 			o['pair']=ob.tile_pair.name
 
-		if ob.tile_collection.name not in shapes:
-			shapes[ob.tile_collection.name] = []
-
-		shapes[ob.tile_collection.name].append(o)
+		if ob.tile_collection:
+			if ob.tile_collection.name not in shapes:
+				shapes[ob.tile_collection.name] = []
+			shapes[ob.tile_collection.name].append(o)
+		elif ob.select_get():
+			tiles.append( o )
 
 	tmp = '/tmp/spectre.json'
-	dump = json.dumps(shapes)
+	dump = json.dumps( {'shapes':shapes, 'tiles':tiles} )
 	print(dump)
 	open(tmp, 'wb').write(dump.encode('utf-8'))
 
