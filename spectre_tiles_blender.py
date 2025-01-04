@@ -488,7 +488,7 @@ def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02, material=N
 	return curve_obj
 
 
-def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, closed=False):
+def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, closed=False, extrude=0.1, bevel=0.3):
 	curve_data = bpy.data.curves.new(name="LinearCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	polyline = curve_data.splines.new('POLY')
@@ -517,8 +517,8 @@ def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, close
 
 	curve_obj = bpy.data.objects.new("LinearCurveObject", curve_data)
 	bpy.context.collection.objects.link(curve_obj)
-	curve_obj.data.extrude = 0.1
-	curve_obj.data.bevel_depth=0.3
+	curve_obj.data.extrude = extrude
+	curve_obj.data.bevel_depth=bevel
 	return curve_obj
 
 
@@ -838,16 +838,18 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_pa
 				trace_tiles(right, dump['tiles'])
 
 		if len(left_bor) > 1:
-			cu = trace_tiles(left_bor+left)
+			cu = trace_tiles(left_bor)
+
+			#cu = trace_tiles(left_bor+left)
 			#cu.data.offset = -0.1
-			if cu.type=='CURVE':
-				cu.data.extrude = 0.5
-				cu.location.y = 0.1
+			#if cu.type=='CURVE':
+			#	cu.data.extrude = 0.5
+			#	cu.location.y = 0.1
 		if len(right_bor) > 1:
-			cu = trace_tiles(right_bor+right)
+			cu = trace_tiles(right_bor)
 			#cu.data.offset = -0.1
-			cu.data.extrude = 0.5
-			cu.location.y = 0.1
+			#cu.data.extrude = 0.5
+			#cu.location.y = 0.1
 
 def create_mesh_tile(o, scale=0.1):
 	trans = spectre.trot( o['angle'] )
@@ -874,7 +876,7 @@ def create_mesh_tile(o, scale=0.1):
 	bpy.context.collection.objects.link(obj)
 	return obj
 
-def trace_tiles( tiles, space_tiles=None ):
+def trace_tiles( tiles, space_tiles=None, inner=False ):
 	print('trace_tiles:', tiles)
 	bpy.ops.object.select_all(action='DESELECT')
 	tmp = []
@@ -923,7 +925,19 @@ def trace_tiles( tiles, space_tiles=None ):
 		#mod = ob.modifiers.new(name='smooth', type="SMOOTH")
 		#mod.factor=1
 
-	trace_inner_edges(ob)
+	if inner:
+		return trace_inner_edges(ob)
+	else:
+
+		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
+		mod.factor = 1
+		mod.iterations = 3
+		bpy.ops.object.modifier_apply(modifier=mod.name)
+
+		bpy.ops.object.convert(target="CURVE")
+		ob.location.y -= 2
+		ob.data.extrude = 0.05
+		return ob
 
 	ob.location.y = -1# + random()
 	return ob
@@ -943,20 +957,30 @@ def trace_inner_edges( ob ):
 
 	mod = e.modifiers.new(name='smooth', type="SMOOTH")
 	mod.factor=1
-	return
+	#return
 
 	bpy.ops.object.convert(target="CURVE")
 	cu = bpy.context.active_object
+	loops = {}
 	for spline in cu.data.splines:
 		if spline.use_cyclic_v:
 			print('cyclic v')
 		if spline.use_cyclic_u:
 			print('cyclic u')
-			#cu['curve_length'] = spline.calc_length()
-			points = [v.co for v in spline.points]
-			c = create_linear_curve(points, closed=True)
-			c.parent = cu
-			break
+			loops[ len(spline.points) ] = spline
+	if loops:
+		nums = list(loops.keys())
+		nums.sort()
+		nums.reverse()
+		spline = loops[nums[0]]
+		#cu['curve_length'] = spline.calc_length()
+		points = [v.co for v in spline.points]
+		print('loop:', points)
+		c = create_linear_curve(points, closed=True, extrude=0, bevel=0.1)
+		c.parent = cu
+		c.location.y = -1
+
+	return e
 
 def extract_inner_edges_and_faces(mesh):
 	import bmesh
@@ -1070,11 +1094,19 @@ if bpy:
 			if not context.active_object: return
 			ob = context.active_object
 			if ob.type=='CURVE':
-				for spline in ob.data.splines:
+				lengths = []
+				total = 0.0
+				for sidx, spline in enumerate(ob.data.splines):
 					if spline.use_cyclic_u:
 						a = spline.calc_length()
-						self.layout.label(text="length=%s" % a)
-						break
+						total += a
+						lengths.append('spline[%s].length=%s' %(sidx, a))
+						if len(lengths) >= 8: break
+				for l in lengths:
+					self.layout.label(text=l)
+				if total:
+					self.layout.label(text='TOTAL LENGTH = %s' % total)
+
 				return
 			if not ob.tile_index: return
 
@@ -1195,6 +1227,7 @@ if bpy:
 			ob.color = [1,0.5,0, 1]
 			if ob.tile_pair:
 				ob.tile_pair.select_set(True)
+			return {"FINISHED"}
 			if ob.tile_pair and not ob.tile_pair.tile_shape_border_right:
 				ob = ob.tile_pair
 				ob.tile_shape_border_right=True
@@ -1206,7 +1239,6 @@ if bpy:
 					mat = smaterial('RIGHT_EDGE', [0,0.5,1])
 					ob.data.materials.append(mat)
 				ob.color = [0,0.5,1, 1]
-			return {"FINISHED"}
 
 	@bpy.utils.register_class
 	class SpecRightBorder(bpy.types.Operator):
@@ -1229,6 +1261,7 @@ if bpy:
 			ob.color = [0,0.5,1, 1]
 			if ob.tile_pair:
 				ob.tile_pair.select_set(True)
+			return {"FINISHED"}
 			if ob.tile_pair and not ob.tile_pair.tile_shape_border_left:
 				ob = ob.tile_pair
 				ob.tile_shape_border_left=True
@@ -1240,7 +1273,6 @@ if bpy:
 					mat = smaterial('LEFT_EDGE', [1,0.5,0])
 					ob.data.materials.append(mat)
 				ob.color = [1,0.5,0, 1]
-			return {"FINISHED"}
 
 
 	@bpy.utils.register_class
@@ -1445,6 +1477,9 @@ if __name__ == '__main__':
 
 	print('kwargs:', kwargs)
 	if jfile:
+		for area in bpy.data.screens['Layout'].areas:
+			if area.type == 'VIEW_3D': 
+				area.spaces[0].overlay.show_relationship_lines = False
 		import_json( jfile )
 	elif '--print' in sys.argv:
 		RENDER_TEST = True
