@@ -210,7 +210,8 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 			if round(b.location.z,0) != round(a.location.z,0):
 				continue
 			b.tile_match_error = a.location.z - b.location.z
-			a.tile_pair = b
+			if not a.tile_pair:
+				a.tile_pair = b
 			hits.append(b)
 		if hits:
 			pairs[a] = hits
@@ -230,7 +231,7 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 		#print('WIDTH:', width)
 		width = round(width,4)
 		if width not in shapes:
-			shapes[width] = {'color':[random(), random(), random(), 1], 'pairs':[], 'curves':[]}
+			shapes[width] = {'color':[uniform(0.7,0.9), uniform(0.7,0.9), uniform(0.7,0.9), 1], 'pairs':[], 'curves':[]}
 
 		shape = shapes[width]
 		shape['pairs'].append([a]+pairs[a])
@@ -487,24 +488,32 @@ def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02, material=N
 	return curve_obj
 
 
-def create_linear_curve(points, radius=0.5, start_rad=1, end_rad=1):
+def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, closed=False):
 	curve_data = bpy.data.curves.new(name="LinearCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	polyline = curve_data.splines.new('POLY')
 	polyline.points.add(len(points) - 1)
+	if closed:
+		polyline.use_cyclic_u=True
 	for i, point in enumerate(points):
-		x,y,z = point
+		if len(point)==3:
+			x,y,z = point
+		else:
+			x,y,z,w = point
 		polyline.points[i].co.x = x
 		polyline.points[i].co.y = y
 		polyline.points[i].co.z = z
 		#polyline.points[i].tilt = i*30
-		polyline.points[i].radius = radius
+		if radius:
+			polyline.points[i].radius = radius
 
 	#polyline.points[0].tilt = math.radians(90)
 	#polyline.points[1].tilt = math.radians(180)
 	#polyline.points[1].radius = 0
-	polyline.points[0].radius = start_rad
-	polyline.points[-1].radius = end_rad
+	if start_rad:
+		polyline.points[0].radius = start_rad
+	if end_rad:
+		polyline.points[-1].radius = end_rad
 
 	curve_obj = bpy.data.objects.new("LinearCurveObject", curve_data)
 	bpy.context.collection.objects.link(curve_obj)
@@ -924,6 +933,30 @@ def trace_tiles( tiles, space_tiles=None ):
 
 def trace_inner_edges( ob ):
 	e = extract_inner_edges_and_faces(ob.data)
+	e.select_set(True)
+	e.parent = ob
+	bpy.context.view_layer.objects.active = e
+	bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_MASS")
+	#mod = e.modifiers.new(name='smooth', type="LAPLACIANSMOOTH")
+	#mod.lambda_border=1
+	#bpy.ops.object.modifier_apply(modifier=mod.name)
+
+	mod = e.modifiers.new(name='smooth', type="SMOOTH")
+	mod.factor=1
+	return
+
+	bpy.ops.object.convert(target="CURVE")
+	cu = bpy.context.active_object
+	for spline in cu.data.splines:
+		if spline.use_cyclic_v:
+			print('cyclic v')
+		if spline.use_cyclic_u:
+			print('cyclic u')
+			#cu['curve_length'] = spline.calc_length()
+			points = [v.co for v in spline.points]
+			c = create_linear_curve(points, closed=True)
+			c.parent = cu
+			break
 
 def extract_inner_edges_and_faces(mesh):
 	import bmesh
@@ -1037,9 +1070,11 @@ if bpy:
 			if not context.active_object: return
 			ob = context.active_object
 			if ob.type=='CURVE':
-				a = ob.data.splines[0].calc_length()
-				self.layout.label(text="length=%s" % a)
-
+				for spline in ob.data.splines:
+					if spline.use_cyclic_u:
+						a = spline.calc_length()
+						self.layout.label(text="length=%s" % a)
+						break
 				return
 			if not ob.tile_index: return
 
@@ -1054,10 +1089,16 @@ if bpy:
 			row.prop(ob, 'tile_shape_right', text=">")
 
 			row = self.layout.row()
+			row.operator('spectre.tile_shape_border_left')
+			row.operator('spectre.tile_shape_border_right')
+
+			row = self.layout.row()
 			if ob.tile_shape_left:
 				row.operator('spectre.tile_left', text="LEFT✔")
 			else:
 				row.operator('spectre.tile_left')
+
+
 			if ob.tile_shape_join:
 				row.operator('spectre.tile_join', text="JOIN✔")
 			else:
@@ -1131,9 +1172,76 @@ if bpy:
 					mat = smaterial('RIGHT', [0,0,1])
 					ob.data.materials.append(mat)
 				ob.color = [0,0,1, 1]
-
-
 			return {"FINISHED"}
+
+	@bpy.utils.register_class
+	class SpecLeftBorder(bpy.types.Operator):
+		bl_idname = "spectre.tile_shape_border_left"
+		bl_label = "Left Border"
+		@classmethod
+		def poll(cls, context):
+			return context.active_object
+		def execute(self, context):
+			ob = context.active_object
+			ob.tile_shape_border_left = True
+			ob.tile_shape_border_right = False
+			if not ob.tile_collection:
+				if bpy.data.worlds[0].tile_active_collection:
+					ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+			if ob.data.materials[0].name != 'LEFT_EDGE':
+				ob.data.materials.clear()
+				mat = smaterial('LEFT_EDGE', [1,0.5,0])
+				ob.data.materials.append(mat)
+			ob.color = [1,0.5,0, 1]
+			if ob.tile_pair:
+				ob.tile_pair.select_set(True)
+			if ob.tile_pair and not ob.tile_pair.tile_shape_border_right:
+				ob = ob.tile_pair
+				ob.tile_shape_border_right=True
+				if not ob.tile_collection:
+					if bpy.data.worlds[0].tile_active_collection:
+						ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+				if ob.data.materials[0].name != 'RIGHT_EDGE':
+					ob.data.materials.clear()
+					mat = smaterial('RIGHT_EDGE', [0,0.5,1])
+					ob.data.materials.append(mat)
+				ob.color = [0,0.5,1, 1]
+			return {"FINISHED"}
+
+	@bpy.utils.register_class
+	class SpecRightBorder(bpy.types.Operator):
+		bl_idname = "spectre.tile_shape_border_right"
+		bl_label = "Right Border"
+		@classmethod
+		def poll(cls, context):
+			return context.active_object
+		def execute(self, context):
+			ob = context.active_object
+			ob.tile_shape_border_left = False
+			ob.tile_shape_border_right = True
+			if not ob.tile_collection:
+				if bpy.data.worlds[0].tile_active_collection:
+					ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+			if ob.data.materials[0].name != 'RIGHT_EDGE':
+				ob.data.materials.clear()
+				mat = smaterial('RIGHT_EDGE', [0,0.5,1])
+				ob.data.materials.append(mat)
+			ob.color = [0,0.5,1, 1]
+			if ob.tile_pair:
+				ob.tile_pair.select_set(True)
+			if ob.tile_pair and not ob.tile_pair.tile_shape_border_left:
+				ob = ob.tile_pair
+				ob.tile_shape_border_left=True
+				if not ob.tile_collection:
+					if bpy.data.worlds[0].tile_active_collection:
+						ob.tile_collection=bpy.data.worlds[0].tile_active_collection
+				if ob.data.materials[0].name != 'LEFT_EDGE':
+					ob.data.materials.clear()
+					mat = smaterial('LEFT_EDGE', [1,0.5,0])
+					ob.data.materials.append(mat)
+				ob.color = [1,0.5,0, 1]
+			return {"FINISHED"}
+
 
 	@bpy.utils.register_class
 	class SpecRight(bpy.types.Operator):
