@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
-import os, sys, math, subprocess
-from random import random, uniform, choice
-from time import time
-try:
-	import bpy, mathutils
-except:
-	bpy=None
+import os, sys
+__doc__ = '''
+
+COMMAND:
+	python3 spectre_tiles_blender.py [OPTIONS] [FILES]
+
+FILES:
+	.blend  loads blender file
+	.json   loads tiles from json file
+
+OPTIONS:
+	--iterations  numer of tile iterations
+	--rotation    valid roations: 0, 30, 60, 120, 180, 140
+	--clear       clears tile metadata from objects
+	--gpencil     tiles as single grease pencil object
+	--numbers     number tiles (grease pencil)
+	--num-mystic  number only mystic tiles
+
+	--help        print this help
+'''
 
 _thisdir = os.path.split(os.path.abspath(__file__))[0]
 if _thisdir not in sys.path: sys.path.insert(0,_thisdir)
@@ -24,6 +37,22 @@ else:
 		BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
 	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
 		BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
+
+
+if '--help' in sys.argv:
+	print(__doc__)
+	print('script dir:', _thisdir)
+	print('blender path:', BLENDER)
+	sys.exit()
+
+import math, subprocess
+from random import random, uniform, choice
+from time import time
+try:
+	import bpy, mathutils
+except:
+	bpy=None
+
 
 if bpy:
 	import spectre
@@ -93,7 +122,7 @@ def is_prime(n): return not any(n % i == 0 for i in range(2,n)) if n > 1 else Fa
 
 TRACE = []
 ITER = 0
-def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=False ):
+def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=False, rotation=30 ):
 	global TRACE, num_tiles, num_mystic, num_mystic_prime, num_flips, ITER
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
@@ -115,7 +144,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	scn.render.engine = "BLENDER_WORKBENCH"
 
 	start = time()
-	spectreTiles = spectre.buildSpectreTiles(iterations,a,b)
+	spectreTiles = spectre.buildSpectreTiles(iterations,a,b, rotation=int(rotation))
 	time1 = time()-start
 
 	print(f"supertiling loop took {round(time1, 4)} seconds")
@@ -545,9 +574,13 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 	global num_tiles, num_mystic, num_mystic_prime, num_flips
 	num_tiles += 1
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
-	color_array = spectre.get_color_array(tile_transformation, label)
-	color_array *= 0.5
-	color_array += 0.5
+	try:
+		color_array = spectre.get_color_array(tile_transformation, label)
+		color_array *= 0.5
+		color_array += 0.5
+	except KeyError:
+		color_array = [0,0.5,0.5]
+
 	rot,scl = spectre.trot_inv(tile_transformation)
 	#print(rot,scl)
 	is_flip = prime = False
@@ -616,8 +649,8 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 			font_scale = 2.0
 			lw = 100
 			if is_mystic:
-				info = '★' + info
-				font_scale *= 4
+				#info = '★' + info
+				font_scale *= 3
 			if prime:
 				#info += '★'
 				font_scale *= 1.5
