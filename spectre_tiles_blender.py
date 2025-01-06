@@ -54,6 +54,11 @@ DEBUG_NUM = True
 USE_PRINT = False
 MAKE_SHAPES = True
 USE_GPEN = False
+DEBUG_DATA = False
+USE_NUM = False
+USE_NUM_MYSTIC = False
+MYSTIC_FONT_SCALE = 10
+GPEN_TILE_LW = 100
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -73,7 +78,7 @@ def smaterial(name, color):
 	if type(name) is list:
 		r,g,b = name
 		name = '%s|%s|%s' % (round(r,3),round(g,3),round(b,3))
-	print(name,color)
+	#print(name,color)
 	if name not in bpy.data.materials:
 		m = bpy.data.materials.new(name=name)
 		m.use_nodes = False
@@ -84,12 +89,14 @@ def smaterial(name, color):
 			m.diffuse_color = color
 	return bpy.data.materials[name]
 
+def is_prime(n): return not any(n % i == 0 for i in range(2,n)) if n > 1 else False
+
 TRACE = []
 ITER = 0
 def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=False ):
-	global TRACE, num_tiles, ITER
+	global TRACE, num_tiles, num_mystic, num_mystic_prime, num_flips, ITER
 	ITER = iterations
-	num_tiles = 0
+	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
 
 	if USE_PRINT:
@@ -113,6 +120,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 
 	print(f"supertiling loop took {round(time1, 4)} seconds")
 
+
 	if USE_GPEN:
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		g = bpy.context.object
@@ -126,6 +134,15 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	spectreTiles["Delta"].forEachTile( lambda a,b: plotVertices(a,b,scale=0.1, gpencil=g))
 	time2 = time()-start
 	print(f"tile recursion loop took {round(time2, 4)} seconds, generated {num_tiles} tiles")
+	print('total number of tiles:', num_tiles)
+	print('num tiles is prime:', is_prime(num_tiles))
+	total_mystic = num_mystic+num_mystic_prime
+	print('total mystics:', total_mystic)
+	print('num mystic:', num_mystic)
+	print('num mystic primes:', num_mystic_prime)
+	if num_mystic_prime:
+		print('mysitc prime ratio:', num_mystic_prime / total_mystic)
+	print('num FLIPS:', num_flips)
 
 	if curve:
 		points = []
@@ -522,32 +539,45 @@ def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, close
 	return curve_obj
 
 
+num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 
-num_tiles = 0
 def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=True, gpencil=None, use_mesh=True):
-	"""
-	T: transformation matrix
-	label: label of shape type
-	"""
-	print(tile_transformation)
-	global num_tiles
+	global num_tiles, num_mystic, num_mystic_prime, num_flips
 	num_tiles += 1
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
 	color_array = spectre.get_color_array(tile_transformation, label)
 	color_array *= 0.5
 	color_array += 0.5
 	rot,scl = spectre.trot_inv(tile_transformation)
+	#print(rot,scl)
+	is_flip = prime = False
+	is_mystic = label == "Gamma2"
+	if ITER % 2:
+		if scl == 1:
+			is_flip = True
+			num_flips += 1
+	else:
+		if scl == -1:
+			is_flip = True
+			num_flips += 1
 
+	if is_mystic:
+		prime = is_prime(num_tiles)
+		if is_flip:
+			print('mystic:', num_tiles, prime, scl)
+		if prime:
+			num_mystic_prime += 1
+		else:
+			num_mystic += 1
 
-	#use_mesh = not gpencil
 	if gpencil:
 		verts = []
 		for v in vertices:
 			x,y = v
 			verts.append([x,0,y])
 
-		show_num = USE_PRINT
-		line_width = 100
+		show_num = USE_PRINT or USE_NUM or (USE_NUM_MYSTIC and is_mystic)
+		line_width = GPEN_TILE_LW
 		if SHAPE_TEST:
 			use_mesh = True
 			shape = SHAPES[5][0]
@@ -583,19 +613,48 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 			frame = gpencil.data.layers['notes'].frames[0]
 			X = 0
 			info = str(num_tiles)
-			if scl==1:  ## this is when iterations is odd
+			font_scale = 2.0
+			lw = 100
+			if is_mystic:
 				info = '★' + info
+				font_scale *= 4
+			if prime:
+				#info += '★'
+				font_scale *= 1.5
+				lw *= 2
+			if is_flip:
+				info += '★'
+				font_scale *= 1.5
+				lw *= 4
+
 			for char in info:
 				assert char in grease_font
 				arr = grease_font[char]
 				stroke = frame.strokes.new()
 				stroke.points.add(count=len(arr))
-				stroke.line_width = 30
+				stroke.line_width = lw
 				for i,v in enumerate(arr):
 					x,y = v
+					x *= font_scale
+					y *= font_scale
 					stroke.points[i].co.x = (x+ax+X) * scale
 					stroke.points[i].co.z = (y+az) * scale
-				X += 1.0
+				X += font_scale
+		if is_flip and 0:
+			frame = gpencil.data.layers['notes'].frames[0]
+			arr = grease_font['★']
+			stroke = frame.strokes.new()
+			stroke.points.add(count=len(arr))
+			stroke.line_width = 30
+			for i,v in enumerate(arr):
+				x,y = v
+				x *= 12
+				y *= 12
+				stroke.points[i].co.x = (x+ax) * scale
+				stroke.points[i].co.z = (y+az) * scale
+
+		if GPEN_ONLY:
+			return
 
 	if use_mesh:
 		verts = []
@@ -621,14 +680,8 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		obj.tile_x = tile_transformation[0][-1]
 		obj.tile_y = tile_transformation[1][-1]
 
-
-		if (ITER % 2 and scl == 1) or (not ITER % 2 and scl == -1):
-			#if scl == 1:
+		if is_mystic:
 			obj.tile_mystic=True
-			#obj.color = [0,0,0,1]
-		else:
-			#obj.color = list(color_array) + [1]
-			pass
 
 		tag = ','.join([str(v) for v in color_array])
 		mat = smaterial(tag, color_array)
@@ -665,10 +718,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 		TRACE.append([obj, ob, rot, scl, tile_transformation])
 
-def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False ):
+def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False, gizmos=False ):
 	import json
+	print('loading:',jfile)
 	dump = json.loads(open(jfile).read())
-	print(dump)
 	if len(dump['tiles']):
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		gpencil = bpy.context.active_object
@@ -789,10 +842,11 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_pa
 			obj.select_set(True)
 			bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_MASS")
 
-			bpy.ops.object.empty_add(type="ARROWS")
-			ob = bpy.context.active_object
-			ob.parent = obj
-			ob.rotation_euler.y = math.radians(o['angle'])
+			if gizmos:
+				bpy.ops.object.empty_add(type="ARROWS")
+				ob = bpy.context.active_object
+				ob.parent = obj
+				ob.rotation_euler.y = math.radians(o['angle'])
 
 			obj.parent=root
 
@@ -812,9 +866,10 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_pa
 				if pname in bpy.data.objects:
 					b = bpy.data.objects[pname]
 					tile.tile_pair = b
-					cu,points = pairs_to_curve( [tile, tile.tile_pair] )
-					cu.parent = root
-					curves.append(cu)
+					if gizmos:
+						cu,points = pairs_to_curve( [tile, tile.tile_pair] )
+						cu.parent = root
+						curves.append(cu)
 					if tile.tile_shape_left:
 						left.append( tile )
 					elif tile.tile_shape_right:
@@ -876,7 +931,7 @@ def create_mesh_tile(o, scale=0.1):
 	bpy.context.collection.objects.link(obj)
 	return obj
 
-def trace_tiles( tiles, space_tiles=None, inner=False ):
+def trace_tiles( tiles, space_tiles=None, inner=False, debug=True ):
 	print('trace_tiles:', tiles)
 	bpy.ops.object.select_all(action='DESELECT')
 	tmp = []
@@ -928,6 +983,18 @@ def trace_tiles( tiles, space_tiles=None, inner=False ):
 	if inner:
 		return trace_inner_edges(ob)
 	else:
+		if debug:
+			copy = ob.copy()
+			copy.data= ob.data.copy()
+			bpy.context.scene.collection.objects.link(copy)
+			copy.select_set(False)
+			mod = copy.modifiers.new(name='smooth', type="SMOOTH")
+			mod.factor = 1
+			mod.iterations = 3
+
+			mod = copy.modifiers.new(name='wire', type="WIREFRAME")
+			mod.thickness=0.5
+
 
 		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
 		mod.factor = 1
@@ -1103,9 +1170,12 @@ if bpy:
 						lengths.append('spline[%s].length=%s' %(sidx, a))
 						if len(lengths) >= 8: break
 				for l in lengths:
+					if DEBUG_DATA: print(l)
 					self.layout.label(text=l)
 				if total:
-					self.layout.label(text='TOTAL LENGTH = %s' % total)
+					l = 'TOTAL LENGTH = %s' % total
+					if DEBUG_DATA: print(l)
+					self.layout.label(text=l)
 
 				return
 			if not ob.tile_index: return
@@ -1435,6 +1505,7 @@ if __name__ == '__main__':
 	kwargs = {}
 	blend = None
 	jfile = None
+	clear_tiles = False
 	for arg in sys.argv:
 		if arg.startswith('--') and '=' in arg:
 			args.append(arg)
@@ -1455,6 +1526,21 @@ if __name__ == '__main__':
 		elif arg=='--shape-test':
 			SHAPE_TEST = True
 			args.append(arg)
+		elif arg == '--clear':
+			clear_tiles = True
+			args.append(arg)
+		elif arg == '--gpencil':
+			USE_GPEN = True
+			GPEN_ONLY = True
+			args.append(arg)
+		elif arg == '--numbers':
+			USE_GPEN = True
+			USE_NUM = True
+			args.append(arg)
+		elif arg == '--num-mystic':
+			USE_GPEN = True
+			USE_NUM_MYSTIC = True
+			args.append(arg)
 
 	if not bpy:
 		cmd = [BLENDER]
@@ -1474,6 +1560,27 @@ if __name__ == '__main__':
 
 	if 'Cube' in bpy.data.objects:
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
+
+	if clear_tiles:
+		## if loading from command line a .blend file with cached tiles
+		mystics = []
+		for ob in bpy.data.objects:
+			if ob.type != 'MESH': continue
+			ob.tile_pair=None
+			ob.tile_collection=None
+			ob.tile_shape_left=False
+			ob.tile_shape_right=False
+			ob.tile_shape_border_right=False
+			ob.tile_shape_border_left=False
+			ob.tile_shape_join=False
+			if ob.data.materials[0].name.startswith(('L','R','J')):
+				ob.data.materials[0] = bpy.data.materials[0]
+			if ob.tile_mystic:
+				ob.color = [uniform(0.1,0.3),uniform(0.1,0.3),uniform(0.1,0.3),1]
+				mystics.append(ob)
+			else:
+				ob.color = [uniform(0.7,0.9),uniform(0.7,0.9),uniform(0.7,0.9),1]
+		print('mystics:', mystics)
 
 	print('kwargs:', kwargs)
 	if jfile:
