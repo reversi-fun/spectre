@@ -134,7 +134,7 @@ class MetaTile:
         for tile, trsf in zip(self.tiles, self.transformations):
            tile.forEachTile(doProc, (mul(transformation, trsf)))
                             
-def buildSpectreBase():
+def buildSpectreBase(rotation=30):
     tiles = {label: (Tile(label) ) for label in TILE_NAMES if label != "Gamma"}
     # special rule for Mystic == Gamma == Gamma1 + Gamma2
     tiles["Gamma"] = MetaTile(tiles=[Tile("Gamma1"),
@@ -145,7 +145,7 @@ def buildSpectreBase():
                                          mul(np.array([
                                              [1,0,SPECTRE_POINTS[8,0]],
                                              [0,1,SPECTRE_POINTS[8,1]]
-                                         ]), trot(30))
+                                         ]), trot(rotation))
                               ],
                               quad=SPECTRE_QUAD.copy())
     # print(f"at buildSpectreBase: tiles[Gamma]={tiles['Gamma'].transformations}")
@@ -230,13 +230,13 @@ def update_transformation_range(T, _label): # drowsvg
     return
 
 #### main process ####
-def buildSpectreTiles(n_ITERATIONS,edge_a,edge_b):
+def buildSpectreTiles(n_ITERATIONS,edge_a,edge_b, rotation=30):
     global SPECTRE_POINTS, Mystic_SPECTRE_POINTS, SPECTRE_QUAD
 
     SPECTRE_POINTS = get_spectre_points(edge_a, edge_b) # tile(Edge_a, Edge_b)
     Mystic_SPECTRE_POINTS = get_spectre_points(edge_b, edge_a) # tile(Edge_b, Edge_a)
     SPECTRE_QUAD = SPECTRE_POINTS[[3,5,7,11],:]
-    tiles = buildSpectreBase()
+    tiles = buildSpectreBase( rotation=rotation )
     for _ in range(n_ITERATIONS):
         tiles = buildSupertiles(tiles)
 
