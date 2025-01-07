@@ -127,6 +127,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
+	ret = {'primes':{}, 'mystics':{}}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -158,9 +159,10 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 		g.data.layers[0].info = 'notes'
 	else:
 		g = None
+	ret['gpencil'] = g
 
 	start = time()
-	spectreTiles["Delta"].forEachTile( lambda a,b: plotVertices(a,b,scale=0.1, gpencil=g))
+	spectreTiles["Delta"].forEachTile( lambda a,b: plotVertices(a,b,scale=0.1, gpencil=g, info=ret))
 	time2 = time()-start
 	print(f"tile recursion loop took {round(time2, 4)} seconds, generated {num_tiles} tiles")
 	print('total number of tiles:', num_tiles)
@@ -242,6 +244,8 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 
 	if MAKE_SHAPES:
 		build_shapes(iterations=iterations, gizmos=gizmos)
+
+	return ret
 
 def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 	pairs = {}
@@ -570,7 +574,7 @@ def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, close
 
 num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 
-def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=True, gpencil=None, use_mesh=True):
+def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=True, gpencil=None, use_mesh=True, info=None):
 	global num_tiles, num_mystic, num_mystic_prime, num_flips
 	num_tiles += 1
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
@@ -596,12 +600,19 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	if is_mystic:
 		prime = is_prime(num_tiles)
+		minfo = {'index':num_tiles, 'trans':tile_transformation, 'rot':rot}
 		if is_flip:
 			print('mystic:', num_tiles, prime, scl)
+			minfo['flip']=True
 		if prime:
 			num_mystic_prime += 1
+			minfo['prime']=True
+			if info: info['primes'][num_tiles]=minfo
 		else:
 			num_mystic += 1
+
+		if info:
+			info['mystics'][num_tiles]=minfo
 
 	if gpencil:
 		verts = []
@@ -1539,13 +1550,17 @@ if __name__ == '__main__':
 	blend = None
 	jfile = None
 	clear_tiles = False
+	layers = []
 	for arg in sys.argv:
 		if arg.startswith('--') and '=' in arg:
 			args.append(arg)
 			k,v = arg.split('=')
 			k = k[2:]
-			if k=='iterations' or k == 'shapes':
-				kwargs[k]=int(v)
+			if k=='iterations':
+				if ',' in v:
+					layers = [int(a) for a in v.split(',')]
+				else:
+					kwargs[k]=int(v)
 			else:
 				kwargs[k]=float(v)
 		elif arg.endswith('.blend'):
@@ -1616,7 +1631,26 @@ if __name__ == '__main__':
 		print('mystics:', mystics)
 
 	print('kwargs:', kwargs)
-	if jfile:
+	if layers:
+		y = 0
+		for i in layers:
+			kwargs['iterations']=i
+			o = build_tiles(**kwargs)
+			o['gpencil'].location.y = y
+			y -= 10
+			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
+			mod.level = 2
+			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
+			mod.factor=1.0
+			print('iteration:', i)
+			primes = set(o['primes'].keys())
+			print('primes:', primes)
+
+			mystics = set(o['mystics'].keys())
+			print('mystics:', mystics)
+
+
+	elif jfile:
 		for area in bpy.data.screens['Layout'].areas:
 			if area.type == 'VIEW_3D': 
 				area.spaces[0].overlay.show_relationship_lines = False
