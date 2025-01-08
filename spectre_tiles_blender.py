@@ -443,7 +443,7 @@ def pairs_to_curve(pairs, iterations=2):
 	cu = create_bezier_curve(points, radius=rad*0.1, extrude=extrude, depth=0.01, material=a.data.materials[0])
 	return cu, points
 
-def create_nurbs( curves, sharp=False, material=None, color=None ):
+def create_nurbs( curves, sharp=False, material=None, color=None, start=None, end=None, show_wire=False ):
 	nurbs_surface = bpy.data.curves.new("NURBS Surface", type='SURFACE') 
 	nurbs_surface.dimensions = '3D' 
 	nurbs_surface.resolution_u = 3
@@ -456,18 +456,40 @@ def create_nurbs( curves, sharp=False, material=None, color=None ):
 	if sharp:
 		curves = [curves[0]] + curves + [curves[-1]]
 		steps = 2
-	for cu in curves:
-		if len(cu.data.splines[0].bezier_points) != N:
-			#raise RuntimeError('invalid curve: %s' % cu)
-			continue
-		for j in range(steps):
-			C += 1
-			spline = nurbs_surface.splines.new('NURBS')
-			spline.points.add( N-1 )  # -1 because of default point
-			for i in range(N):
-				x,y,z = cu.data.splines[0].bezier_points[i].co
-				spline.points[i].co = mathutils.Vector((x,y,z, 1))
-				spline.points[i].select=True
+	print('nurbs curves:', len(curves))
+	#print(curves)
+	if type(curves[0]) is list:
+		z = start or 0
+		endz = end or 10
+		inc = (endz-z) / (len(curves)-1)
+		print('nurbs z inc:', inc)
+		for cu in curves:
+			N = len(cu)
+			for j in range(steps):
+				C += 1
+				spline = nurbs_surface.splines.new('NURBS')
+				spline.points.add( len(cu)-1 )  # -1 because of default point
+				for i,v in enumerate(cu):
+					x,y = v
+					#spline.points[i].co = mathutils.Vector((x,y,z, 1))
+					spline.points[i].co = mathutils.Vector((x,z,y, 1))
+					spline.points[i].select=True
+			z += inc
+			print('nurbs z:', z)
+
+	else:
+		for cu in curves:
+			if len(cu.data.splines[0].bezier_points) != N:
+				#raise RuntimeError('invalid curve: %s' % cu)
+				continue
+			for j in range(steps):
+				C += 1
+				spline = nurbs_surface.splines.new('NURBS')
+				spline.points.add( N-1 )  # -1 because of default point
+				for i in range(N):
+					x,y,z = cu.data.splines[0].bezier_points[i].co
+					spline.points[i].co = mathutils.Vector((x,y,z, 1))
+					spline.points[i].select=True
 	print('nurbs: %s x %s' % (C, N))
 	if not C:
 		return None
@@ -475,7 +497,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None ):
 	bpy.ops.object.mode_set(mode='EDIT') 
 	bpy.ops.curve.make_segment()
 	bpy.ops.object.mode_set(mode='OBJECT') 
-	nurbs_obj.show_wire=True
+	nurbs_obj.show_wire=show_wire
 	if material:
 		nurbs_obj.data.materials.append(material)
 	if color:
@@ -585,6 +607,18 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 	except KeyError:
 		color_array = [0,0.5,0.5]
 
+	ax = ay = 0.0
+	verts = []
+	for v in vertices:
+		x,y = v
+		x *= scale
+		y *= scale
+		verts.append((x,y))
+		ax += x
+		ay += y
+	ax /= len(vertices)
+	ay /= len(vertices)
+
 	rot,scl = spectre.trot_inv(tile_transformation)
 	#print(rot,scl)
 	is_flip = prime = False
@@ -600,7 +634,12 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	if is_mystic:
 		prime = is_prime(num_tiles)
-		minfo = {'index':num_tiles, 'trans':tile_transformation, 'rot':rot}
+		minfo = {
+			'index':num_tiles, 
+			#'trans':tile_transformation, 
+			'rot':rot, 'x':x, 'y':y,
+			'verts': verts,
+		}
 		if is_flip:
 			print('mystic:', num_tiles, prime, scl)
 			minfo['flip']=True
@@ -1542,7 +1581,15 @@ def export_json(world):
 	open(tmp, 'wb').write(dump.encode('utf-8'))
 
 
-
+def interpolate_points(a, b):
+	ret = []
+	for i, v in enumerate(a):
+		ax,ay = v
+		bx,by = b[i]
+		dx = bx-ax
+		dy = by-ay
+		ret.append( [ax+(dx*0.5), ay+(dy*0.5)] )
+	return ret
 
 if __name__ == '__main__':
 	args = []
@@ -1632,12 +1679,13 @@ if __name__ == '__main__':
 
 	print('kwargs:', kwargs)
 	if layers:
-		y = 0
+		Y = 0
+		prev_layer = None
 		for i in layers:
 			kwargs['iterations']=i
 			o = build_tiles(**kwargs)
-			o['gpencil'].location.y = y
-			y -= 10
+			o['gpencil'].location.y = Y
+			Y -= 30
 			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
 			mod.level = 2
 			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
@@ -1648,6 +1696,40 @@ if __name__ == '__main__':
 
 			mystics = set(o['mystics'].keys())
 			print('mystics:', mystics)
+
+			if prev_layer:
+				for index in prev_layer['mystics']:
+					if index in mystics:
+						print('layer match:', index)
+						px = prev_layer['mystics'][index]['x']
+						py = prev_layer['mystics'][index]['y']
+						pr = prev_layer['mystics'][index]['rot']
+						x = o['mystics'][index]['x']
+						y = o['mystics'][index]['y']
+						r = o['mystics'][index]['rot']
+						print('A:', px, py, pr)
+						print('B:', x, y, r)
+						mid = interpolate_points(
+							prev_layer['mystics'][index]['verts'],
+							o['mystics'][index]['verts']
+						)
+						curves = [
+							prev_layer['mystics'][index]['verts'],
+							prev_layer['mystics'][index]['verts'],
+							prev_layer['mystics'][index]['verts'],
+							mid,
+							o['mystics'][index]['verts'],
+							o['mystics'][index]['verts'],
+							o['mystics'][index]['verts'],
+						]
+						nurb = create_nurbs(
+							curves, 
+							sharp=False, 
+							start=prev_layer['gpencil'].location.y, 
+							end=o['gpencil'].location.y
+						)
+						#nurb.scale.y = 1.35  ## quick fix
+			prev_layer = o
 
 
 	elif jfile:
