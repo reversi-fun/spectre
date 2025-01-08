@@ -127,7 +127,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
-	ret = {'primes':{}, 'mystics':{}}
+	ret = {'primes':{}, 'mystics':{}, 'flips':{}}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -154,9 +154,32 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	if USE_GPEN:
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		g = bpy.context.object
-		#glayer = g.data.layers.new("notes", set_active=True)
-		#gframe = glayer.frames.new(1)
-		g.data.layers[0].info = 'notes'
+		mat = bpy.data.materials.new(name="MYSTICS")
+		bpy.data.materials.create_gpencil_data(mat)
+		mat.grease_pencil.show_fill = True
+		mat.grease_pencil.show_stroke = False
+		mat.grease_pencil.fill_color = [1,1,1, 0.15]
+		g.data.materials.append(mat)
+
+		mat = bpy.data.materials.new(name="FLIPS")
+		bpy.data.materials.create_gpencil_data(mat)
+		mat.grease_pencil.show_fill = True
+		mat.grease_pencil.show_stroke = False
+		mat.grease_pencil.fill_color = [1,0,1, 0.5]
+		g.data.materials.append(mat)
+
+		mat = bpy.data.materials.new(name="PRIMES")
+		bpy.data.materials.create_gpencil_data(mat)
+		mat.grease_pencil.show_fill = True
+		mat.grease_pencil.show_stroke = False
+		mat.grease_pencil.fill_color = [0,1,1, 0.5]
+		g.data.materials.append(mat)
+
+
+		g.data.layers[0].info = 'PRIMES'
+		for n in 'MYSTICS FLIPS NOTES'.split():
+			glayer = g.data.layers.new(n)
+			gframe = glayer.frames.new(1)
 	else:
 		g = None
 	ret['gpencil'] = g
@@ -462,7 +485,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None, start=None, en
 		z = start or 0
 		endz = end or 10
 		inc = (endz-z) / (len(curves)-1)
-		print('nurbs z inc:', inc)
+		#print('nurbs z inc:', inc)
 		for cu in curves:
 			N = len(cu)
 			for j in range(steps):
@@ -475,7 +498,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None, start=None, en
 					spline.points[i].co = mathutils.Vector((x,z,y, 1))
 					spline.points[i].select=True
 			z += inc
-			print('nurbs z:', z)
+			#print('nurbs z:', z)
 
 	else:
 		for cu in curves:
@@ -593,6 +616,20 @@ def create_linear_curve(points, radius=None, start_rad=None, end_rad=None, close
 	curve_obj.data.bevel_depth=bevel
 	return curve_obj
 
+def stroke_circle(frame, x, y, radius=1, material_index=1, steps=18):
+	stroke = frame.strokes.new()
+	stroke.points.add(count=steps)
+	stroke.line_width = 30
+	stroke.material_index=material_index
+	stroke.use_cyclic = True
+	for i in range(steps):
+		angle = 2 * math.pi * i / steps
+		ax = radius * math.cos(angle)
+		ay = radius * math.sin(angle)
+		stroke.points[i].co.x = (ax * radius) + x
+		stroke.points[i].co.z = (ay * radius) + y
+
+
 
 num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 
@@ -641,8 +678,9 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 			'verts': verts,
 		}
 		if is_flip:
-			print('mystic:', num_tiles, prime, scl)
+			#print('mystic:', num_tiles, prime, scl)
 			minfo['flip']=True
+			if info: info['flips'][num_tiles]=minfo
 		if prime:
 			num_mystic_prime += 1
 			minfo['prime']=True
@@ -690,25 +728,38 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		ax /= len(verts)
 		az /= len(verts)
 
+		if prime:
+			frame = gpencil.data.layers['PRIMES'].frames[0]
+			stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=3)
+
+		if is_flip:
+			frame = gpencil.data.layers['FLIPS'].frames[0]
+			stroke_circle(frame, ax*scale, az*scale, material_index=2)
+
+		#if is_mystic:
+		#	frame = gpencil.data.layers['MYSTICS'].frames[0]
+		#	stroke_circle(frame, ax*scale, az*scale)
+
+
 		#X = tile_transformation[0][-1]
 		#Y = tile_transformation[1][-1]
 		if show_num:
-			frame = gpencil.data.layers['notes'].frames[0]
+			frame = gpencil.data.layers['NOTES'].frames[0]
 			X = 0
 			info = str(num_tiles)
 			font_scale = 2.0
 			lw = 100
 			if is_mystic:
 				#info = '★' + info
-				font_scale *= 3
+				font_scale *= 2
 			if prime:
 				#info += '★'
-				font_scale *= 1.5
-				lw *= 2
+				font_scale *= 1.2
+				lw *= 1.5
 			if is_flip:
-				info += '★'
-				font_scale *= 1.5
-				lw *= 4
+				#info += '★'
+				font_scale *= 1.2
+				lw *= 1.2
 
 			for char in info:
 				assert char in grease_font
@@ -723,18 +774,6 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 					stroke.points[i].co.x = (x+ax+X) * scale
 					stroke.points[i].co.z = (y+az) * scale
 				X += font_scale
-		if is_flip and 0:
-			frame = gpencil.data.layers['notes'].frames[0]
-			arr = grease_font['★']
-			stroke = frame.strokes.new()
-			stroke.points.add(count=len(arr))
-			stroke.line_width = 30
-			for i,v in enumerate(arr):
-				x,y = v
-				x *= 12
-				y *= 12
-				stroke.points[i].co.x = (x+ax) * scale
-				stroke.points[i].co.z = (y+az) * scale
 
 		if GPEN_ONLY:
 			return
@@ -1681,11 +1720,12 @@ if __name__ == '__main__':
 	if layers:
 		Y = 0
 		prev_layer = None
+		ystep = len(layers) * 12
 		for i in layers:
 			kwargs['iterations']=i
 			o = build_tiles(**kwargs)
 			o['gpencil'].location.y = Y
-			Y -= 30
+			Y -= ystep
 			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
 			mod.level = 2
 			mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
@@ -1697,6 +1737,9 @@ if __name__ == '__main__':
 			mystics = set(o['mystics'].keys())
 			print('mystics:', mystics)
 
+			flips = set(o['flips'].keys())
+			print('flips:', flips)
+
 			if prev_layer:
 				for index in prev_layer['mystics']:
 					if index in mystics:
@@ -1707,8 +1750,8 @@ if __name__ == '__main__':
 						x = o['mystics'][index]['x']
 						y = o['mystics'][index]['y']
 						r = o['mystics'][index]['rot']
-						print('A:', px, py, pr)
-						print('B:', x, y, r)
+						#print('A:', px, py, pr)
+						#print('B:', x, y, r)
 						mid = interpolate_points(
 							prev_layer['mystics'][index]['verts'],
 							o['mystics'][index]['verts']
@@ -1728,7 +1771,14 @@ if __name__ == '__main__':
 							start=prev_layer['gpencil'].location.y, 
 							end=o['gpencil'].location.y
 						)
-						#nurb.scale.y = 1.35  ## quick fix
+						if index in primes:
+							smat = smaterial('PRIME', [0,1,1])
+							nurb.data.materials.append(smat)
+							nurb.name = 'PRIME(%s)' % index
+						elif index in flips:
+							smat = smaterial('FLIP', [1,0,1])
+							nurb.data.materials.append(smat)
+
 			prev_layer = o
 
 
