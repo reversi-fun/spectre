@@ -31,12 +31,13 @@ elif sys.platform == 'darwin':
 	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
 else:
 	BLENDER = 'blender'
-	if os.path.isfile(os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')):
-		BLENDER = os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')
-	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')):
-		BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
-	elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
-		BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
+	if '--blender-test' in sys.argv:
+		if os.path.isfile(os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')):
+			BLENDER = os.path.expanduser('~/Downloads/blender-3.0.0-linux-x64/blender')
+		elif os.path.isfile(os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')):
+			BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
+		elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
+			BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
 
 
 if '--help' in sys.argv:
@@ -45,13 +46,18 @@ if '--help' in sys.argv:
 	print('blender path:', BLENDER)
 	sys.exit()
 
-import math, subprocess
+import math, subprocess, functools
 from random import random, uniform, choice
 from time import time
 try:
 	import bpy, mathutils
 except:
 	bpy=None
+
+try:
+	import matplotlib
+except:
+	matplotlib = None
 
 
 if bpy:
@@ -118,6 +124,7 @@ def smaterial(name, color):
 			m.diffuse_color = color
 	return bpy.data.materials[name]
 
+@functools.lru_cache
 def is_prime(n): return not any(n % i == 0 for i in range(2,n)) if n > 1 else False
 
 TRACE = []
@@ -197,6 +204,8 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	if num_mystic_prime:
 		print('mysitc prime ratio:', num_mystic_prime / total_mystic)
 	print('num FLIPS:', num_flips)
+
+	ret['num_tiles'] = num_tiles
 
 	if curve:
 		points = []
@@ -479,7 +488,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None, start=None, en
 	if sharp:
 		curves = [curves[0]] + curves + [curves[-1]]
 		steps = 2
-	print('nurbs curves:', len(curves))
+	#print('nurbs curves:', len(curves))
 	#print(curves)
 	if type(curves[0]) is list:
 		z = start or 0
@@ -513,7 +522,7 @@ def create_nurbs( curves, sharp=False, material=None, color=None, start=None, en
 					x,y,z = cu.data.splines[0].bezier_points[i].co
 					spline.points[i].co = mathutils.Vector((x,y,z, 1))
 					spline.points[i].select=True
-	print('nurbs: %s x %s' % (C, N))
+	#print('nurbs: %s x %s' % (C, N))
 	if not C:
 		return None
 	bpy.context.view_layer.objects.active = nurbs_obj
@@ -766,7 +775,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 				arr = grease_font[char]
 				stroke = frame.strokes.new()
 				stroke.points.add(count=len(arr))
-				stroke.line_width = lw
+				stroke.line_width = int(lw)
 				for i,v in enumerate(arr):
 					x,y = v
 					x *= font_scale
@@ -1637,12 +1646,15 @@ if __name__ == '__main__':
 	jfile = None
 	clear_tiles = False
 	layers = []
+	layers_expand = 12
 	for arg in sys.argv:
 		if arg.startswith('--') and '=' in arg:
 			args.append(arg)
 			k,v = arg.split('=')
 			k = k[2:]
-			if k=='iterations':
+			if k=='layer-expand':
+				layers_expand = float(v)
+			elif k=='iterations':
 				if ',' in v:
 					layers = [int(a) for a in v.split(',')]
 				else:
@@ -1718,11 +1730,30 @@ if __name__ == '__main__':
 
 	print('kwargs:', kwargs)
 	if layers:
+		print('matplotlib:', matplotlib)
+		if matplotlib:
+			import matplotlib.pyplot as plt
+
+		nurbs_trace = True
+		prime_trace = True
+		flip_trace  = True
 		Y = 0
 		prev_layer = None
-		ystep = len(layers) * 12
+		ystep = len(layers) * layers_expand
+		GPEN_TILE_LW += len(layers) * 50
+
+		layer_names = []
+		layer_num_primes = []
+		layer_num_primes_percent = []
+
+		layer_num_flips = []
+		layer_num_flips_percent = []
+
 		for i in layers:
+			layer_names.append('interation:%s' % i)
 			kwargs['iterations']=i
+			if i >= 3:
+				nurbs_trace = False
 			o = build_tiles(**kwargs)
 			o['gpencil'].location.y = Y
 			Y -= ystep
@@ -1734,16 +1765,24 @@ if __name__ == '__main__':
 			primes = set(o['primes'].keys())
 			print('primes:', primes)
 
+			layer_num_primes.append(len(primes))
+			layer_num_primes_percent.append( len(primes) / o['num_tiles'] )
+
 			mystics = set(o['mystics'].keys())
-			print('mystics:', mystics)
+			print('mystics:', len(mystics))
+
 
 			flips = set(o['flips'].keys())
-			print('flips:', flips)
+			print('flips:', len(flips))
+
+			layer_num_flips.append(len(flips))
+			layer_num_flips_percent.append( len(flips) / o['num_tiles'] )
+
 
 			if prev_layer:
 				for index in prev_layer['mystics']:
 					if index in mystics:
-						print('layer match:', index)
+						#print('layer match:', index)
 						px = prev_layer['mystics'][index]['x']
 						py = prev_layer['mystics'][index]['y']
 						pr = prev_layer['mystics'][index]['rot']
@@ -1765,26 +1804,57 @@ if __name__ == '__main__':
 							o['mystics'][index]['verts'],
 							o['mystics'][index]['verts'],
 						]
-						nurb = create_nurbs(
-							curves, 
-							sharp=False, 
-							start=prev_layer['gpencil'].location.y, 
-							end=o['gpencil'].location.y
-						)
-						if index in primes:
-							smat = smaterial('PRIME', [0,1,1])
-							nurb.data.materials.append(smat)
-							nurb.name = 'PRIME(%s)' % index
-						elif index in flips:
-							smat = smaterial('FLIP', [1,0,1])
-							nurb.data.materials.append(smat)
+						show_nurb = nurbs_trace
+						if not show_nurb:
+							if index in primes or index in flips:
+								show_nurb = True
+						if show_nurb:
+							nurb = create_nurbs(
+								curves, 
+								sharp=False, 
+								start=prev_layer['gpencil'].location.y, 
+								end=o['gpencil'].location.y
+							)
+							if index in primes:
+								smat = smaterial('PRIME', [0,1,1])
+								nurb.data.materials.append(smat)
+								nurb.name = 'PRIME(%s)' % index
+							elif index in flips:
+								smat = smaterial('FLIP', [1,0,1])
+								nurb.data.materials.append(smat)
 
 			prev_layer = o
+
+		if matplotlib:
+			fig, ax = plt.subplots()
+			ax.set_title('number of primes for each iteration')
+			ax.set_ylabel('number of primes')
+			ax.bar(layer_names, layer_num_primes)
+			plt.show()
+
+			fig, ax = plt.subplots()
+			ax.set_title('percentage of primes for each iteration')
+			ax.set_ylabel('percentage of primes')
+			ax.bar(layer_names, layer_num_primes_percent)
+			plt.show()
+
+			fig, ax = plt.subplots()
+			ax.set_title('number of -Y flips for each iteration')
+			ax.set_ylabel('number of flips')
+			ax.bar(layer_names, layer_num_flips)
+			plt.show()
+
+			fig, ax = plt.subplots()
+			ax.set_title('percentage of -Y flips for each iteration')
+			ax.set_ylabel('percentage of flips')
+			ax.bar(layer_names, layer_num_flips_percent)
+			plt.show()
+
 
 
 	elif jfile:
 		for area in bpy.data.screens['Layout'].areas:
-			if area.type == 'VIEW_3D': 
+			if area.type == 'VIEW_3D':
 				area.spaces[0].overlay.show_relationship_lines = False
 		import_json( jfile )
 	elif '--print' in sys.argv:
