@@ -101,6 +101,8 @@ GPEN_TILE_LW = 100
 CALC_ALL_PRIMES = True
 USE_MATPLOT = False
 USE_GPEN_SMOOTH = False
+GAMMA2_ONLY = False
+PLOT_PERCENTS = False
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -141,7 +143,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
-	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}}
+	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -179,7 +181,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 		bpy.data.materials.create_gpencil_data(mat)
 		mat.grease_pencil.show_fill = True
 		mat.grease_pencil.show_stroke = False
-		mat.grease_pencil.fill_color = [1,0,1, 0.5]
+		mat.grease_pencil.fill_color = [1,0,1, 1]
 		g.data.materials.append(mat)
 
 		mat = bpy.data.materials.new(name="PRIMES")
@@ -191,9 +193,18 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 
 
 		g.data.layers[0].info = 'PRIMES'
+
+		for label in 'Theta Lambda Pi Xi Gamma1 Gamma2 Sigma Phi Delta Psi'.split():
+			glayer = g.data.layers.new(label+'.PRIMES')
+			gframe = glayer.frames.new(1)
+			if GAMMA2_ONLY:
+				if label != 'Gamma2':
+					glayer.hide=True
+
 		for n in 'MYSTICS FLIPS NOTES'.split():
 			glayer = g.data.layers.new(n)
 			gframe = glayer.frames.new(1)
+
 	else:
 		g = None
 	ret['gpencil'] = g
@@ -681,39 +692,42 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 			is_flip = True
 			num_flips += 1
 	else:
-		if scl == -1:
+		#if scl == -1:
+		if scl != 1:
 			is_flip = True
 			num_flips += 1
 
 	prime = None
+
+	minfo = {
+		'index':num_tiles, 
+		'rot':rot, 'x':x, 'y':y,
+		'verts': verts,
+	}
+
 	if CALC_ALL_PRIMES and info:
 		prime = is_prime(num_tiles)
 		if prime:
-			minfo = {
-				'index':num_tiles, 
-				'rot':rot, 'x':x, 'y':y,
-				'verts': verts,
-			}
 			info['all-primes'][num_tiles]=minfo
+
+	if is_flip:
+		minfo['flip']=True
+		if info: info['flips'][num_tiles]=minfo
 
 	if is_mystic:
 		prime = is_prime(num_tiles)
-		minfo = {
-			'index':num_tiles, 
-			#'trans':tile_transformation, 
-			'rot':rot, 'x':x, 'y':y,
-			'verts': verts,
-		}
-		if is_flip:
-			#print('mystic:', num_tiles, prime, scl)
-			minfo['flip']=True
-			if info: info['flips'][num_tiles]=minfo
 		if prime:
 			num_mystic_prime += 1
 			minfo['prime']=True
 			if info: info['primes'][num_tiles]=minfo
 		else:
 			num_mystic += 1
+		if is_flip:
+			#raise RuntimeError(num_tiles)
+			if info:
+				info['mystic-flips'][num_tiles]=minfo
+				if prime:
+					info['mystic-prime-flips'][num_tiles]=minfo
 
 		if info:
 			info['mystics'][num_tiles]=minfo
@@ -739,6 +753,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		if label not in gpencil.data.layers:
 			layer = gpencil.data.layers.new(label)
 			frame = layer.frames.new(1)
+
 		frame = gpencil.data.layers[label].frames[0]
 		stroke = frame.strokes.new()
 		stroke.points.add(count=len(verts))
@@ -756,15 +771,15 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		az /= len(verts)
 
 		if prime:
-			frame = gpencil.data.layers['PRIMES'].frames[0]
+			frame = gpencil.data.layers[label+'.PRIMES'].frames[0]
 			if is_mystic:
 				stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=3)
 			else:
-				stroke_circle(frame, ax*scale, az*scale, radius=1, material_index=3)
+				stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=3)
 
 		if is_flip:
 			frame = gpencil.data.layers['FLIPS'].frames[0]
-			stroke_circle(frame, ax*scale, az*scale, material_index=2)
+			stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=2)
 
 		#if is_mystic:
 		#	frame = gpencil.data.layers['MYSTICS'].frames[0]
@@ -1660,6 +1675,60 @@ def interpolate_points(a, b):
 		ret.append( [ax+(dx*0.5), ay+(dy*0.5)] )
 	return ret
 
+NUM_PLOTS = 0
+def ploter(title, ylabel, names, values, overlays=None, save=None):
+	global NUM_PLOTS
+	fig, ax = plt.subplots()
+	ax.set_title(title)
+	ax.set_ylabel(ylabel)
+	ax.bar(names, values)
+	for i,rect in enumerate(ax.patches):
+		x = rect.get_x()
+		if type(values[i]) is not float:
+			ax.text(x, rect.get_height(), '%s' % values[i], fontsize=10)
+		if not overlays: continue
+		if overlays[i]:
+			x += rect.get_width() / 2
+			txt = overlays[i].strip().replace('\t', '  ')
+			y = rect.get_y() + (rect.get_height()/3)
+			if txt:
+				tx = []
+				lines = txt.splitlines()
+				if len(lines) > 20:
+					y = rect.get_y()
+				for ln in lines:
+					if len(ln) > 30:
+						ln = ln[:45] + '...'
+					tx.append(ln)
+					if len(tx) > 25:
+						tx.append('...')
+						tx.append(lines[-1])
+						break
+				txt = '\n'.join(tx)
+				ax.text(x, y, txt+'\n', fontsize=8)
+	fig.subplots_adjust(bottom=0.15)
+	NUM_PLOTS += 1
+	if save:
+		if save is True:
+			save = '/tmp/spectre_plot_%s.png' % NUM_PLOTS
+		print('saving plot:', save)
+		fig.savefig(save, 
+			#bbox_inches='tight', 
+			pad_inches=1,
+		)
+		return save
+	else:
+		plt.show()
+
+def show_plot(png, x=0, y=0, z=70):
+	bpy.ops.object.empty_add(type='IMAGE')
+	ob = bpy.context.active_object
+	ob.data = bpy.data.images.load(png)
+	ob.rotation_euler.x = math.pi / 2
+	ob.scale *= 100
+	ob.location = [x,y,z]
+
+
 if __name__ == '__main__':
 	args = []
 	kwargs = {}
@@ -1767,19 +1836,32 @@ if __name__ == '__main__':
 
 		layer_num_all_primes = []
 		layer_num_all_primes_percent = []
+		layer_num_all_primes_overlay = []
 
 		layer_num_primes = []
 		layer_num_primes_percent = []
+		layer_num_primes_overlay = []
 
 		layer_num_flips = []
 		layer_num_flips_percent = []
+		layer_num_flips_overlay = []
+
+		layer_num_mystic_flips = []
+		layer_num_mystic_flips_percent = []
+		layer_num_mystic_flips_overlay = []
+
+		layer_num_mystic_prime_flips = []
+		layer_num_mystic_prime_flips_percent = []
+		layer_num_mystic_prime_flips_overlay = []
 
 		for i in layers:
-			layer_names.append('interation:%s' % i)
 			kwargs['iterations']=i
 			if i >= 3:
 				nurbs_trace = False
 			o = build_tiles(**kwargs)
+
+			layer_names.append('iteration:%s\ntiles:%s\nmystics:%s' % (i, o['num_tiles'], len(o['mystics'])))
+
 			o['gpencil'].location.y = Y
 			Y -= ystep
 			if USE_GPEN_SMOOTH:
@@ -1793,20 +1875,42 @@ if __name__ == '__main__':
 
 			layer_num_primes.append(len(primes))
 			layer_num_primes_percent.append( len(primes) / o['num_tiles'] )
+			primes = list(primes)
+			primes.sort()
+			layer_num_primes_overlay.append( '\n'.join([str(p) for p in primes]) )
 
-			all_primes = set(o['all-primes'].keys())
+			all_primes = list(o['all-primes'].keys())
 			print('all-primes:', all_primes)
+			all_primes.sort()
 			layer_num_all_primes.append(len(all_primes))
 			layer_num_all_primes_percent.append( len(all_primes) / o['num_tiles'] )
+			layer_num_all_primes_overlay.append( '\n'.join([str(p) for p in all_primes]) )
 
-			mystics = set(o['mystics'].keys())
+			mystics = list(o['mystics'].keys())
+			mystics.sort()
 			print('mystics:', len(mystics))
 
-			flips = set(o['flips'].keys())
+			flips = list(o['flips'].keys())
+			flips.sort()
 			print('flips:', len(flips))
-
 			layer_num_flips.append(len(flips))
 			layer_num_flips_percent.append( len(flips) / o['num_tiles'] )
+			layer_num_flips_overlay.append( '\n'.join([str(p) for p in flips]) )
+
+
+			mflips = list(o['mystic-flips'].keys())
+			mflips.sort()
+			print('mystic-flips:', len(mflips))
+			layer_num_mystic_flips.append(len(mflips))
+			layer_num_mystic_flips_percent.append( len(mflips) / o['num_tiles'] )
+			layer_num_mystic_flips_overlay.append( '\n'.join([str(p) for p in mflips]) )
+
+			mpflips = list(o['mystic-prime-flips'].keys())
+			mpflips.sort()
+			print('mystic-prime-flips:', len(mpflips))
+			layer_num_mystic_prime_flips.append(len(mpflips))
+			layer_num_mystic_prime_flips_percent.append( len(mpflips) / o['num_tiles'] )
+			layer_num_mystic_prime_flips_overlay.append( '\n'.join([str(p) for p in mpflips]) )
 
 
 			if prev_layer:
@@ -1856,43 +1960,88 @@ if __name__ == '__main__':
 			prev_layer = o
 
 		if matplotlib and USE_MATPLOT:
-			fig, ax = plt.subplots()
-			ax.set_title('number of primes for each iteration')
-			ax.set_ylabel('number of primes')
-			ax.bar(layer_names, layer_num_all_primes)
-			plt.show()
+			png = ploter(
+				'number of primes for each iteration',
+				'number of primes',
+				layer_names, layer_num_all_primes,
+				layer_num_all_primes_overlay,
+				save=True
+			)
+			show_plot(png)
 
-			fig, ax = plt.subplots()
-			ax.set_title('percentage of primes for each iteration')
-			ax.set_ylabel('percentage of primes')
-			ax.bar(layer_names, layer_num_all_primes_percent)
-			plt.show()
+			if PLOT_PERCENTS:
+				ploter(
+					'percentage of primes for each iteration',
+					'percentage of primes',
+					layer_names, layer_num_all_primes_percent
+				)
 
 
-			fig, ax = plt.subplots()
-			ax.set_title('number of mystic primes for each iteration')
-			ax.set_ylabel('number of mystic primes')
-			ax.bar(layer_names, layer_num_primes)
-			plt.show()
+			png = ploter(
+				'number of Mystic primes for each iteration',
+				'number of Mystic primes',
+				layer_names, layer_num_primes,
+				layer_num_primes_overlay,
+				save=True
+			)
+			show_plot(png, x = 100)
 
-			fig, ax = plt.subplots()
-			ax.set_title('percentage of mystic primes for each iteration')
-			ax.set_ylabel('percentage of mystic primes')
-			ax.bar(layer_names, layer_num_primes_percent)
-			plt.show()
 
-			fig, ax = plt.subplots()
-			ax.set_title('number of -Y flips for each iteration')
-			ax.set_ylabel('number of flips')
-			ax.bar(layer_names, layer_num_flips)
-			plt.show()
+			if PLOT_PERCENTS:
+				ploter(
+					'percentage of Mystic primes for each iteration',
+					'percentage of Mystic primes',
+					layer_names, layer_num_primes_percent,
+				)
 
-			fig, ax = plt.subplots()
-			ax.set_title('percentage of -Y flips for each iteration')
-			ax.set_ylabel('percentage of flips')
-			ax.bar(layer_names, layer_num_flips_percent)
-			plt.show()
+			png = ploter(
+				'number of -Y flips for each iteration',
+				'number of flips',
+				layer_names, layer_num_flips,
+				layer_num_flips_overlay,
+				save=True
+			)
+			show_plot(png, x = 200)
 
+			if PLOT_PERCENTS:
+				ploter(
+					'percentage of -Y flips for each iteration',
+					'percentage of flips',
+					layer_names, layer_num_flips_percent,
+				)
+
+				
+			png = ploter(
+				'number of Mystic -Y flips for each iteration',
+				'number of Mystic flips',
+				layer_names, layer_num_mystic_flips,
+				layer_num_mystic_flips_overlay,
+				save=True
+			)
+			show_plot(png, x = 300)
+
+			if PLOT_PERCENTS:
+				ploter(
+					'percentage of Mystic -Y flips for each iteration',
+					'percentage of Mystic flips',
+					layer_names, layer_num_mystic_flips_percent,
+				)
+
+			png = ploter(
+				'number of Mystic prime -Y flips for each iteration',
+				'number of Mystic prime flips',
+				layer_names, layer_num_mystic_prime_flips,
+				layer_num_mystic_prime_flips_overlay,
+				save=True
+			)
+			show_plot(png, x = 400)
+
+			if PLOT_PERCENTS:
+				ploter(
+					'percentage of Mystic prime -Y flips for each iteration',
+					'percentage of Mystic prime flips',
+					layer_names, layer_num_mystic_prime_flips_percent,
+				)
 
 
 	elif jfile:
