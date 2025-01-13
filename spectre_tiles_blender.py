@@ -63,8 +63,10 @@ GLOBALS = {
 	'gpencil'     : False,
 	'plot'        : False,
 	'gpen-smooth' : False,
-	'plot-labels' : True,
-	'plot-labels-radius' : 1.5,
+	'gpen-fills'  : True,
+	'plot-labels' : False,
+	'plot-labels-radius' : 1,
+	'max-tile' : None,
 }
 
 if '--help' in sys.argv:
@@ -100,6 +102,7 @@ if bpy:
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
 	bpy.types.Object.tile_x = bpy.props.FloatProperty(name='tile x')
 	bpy.types.Object.tile_y = bpy.props.FloatProperty(name='tile y')
+	bpy.types.Object.tile_flip = bpy.props.BoolProperty(name="flip")
 	bpy.types.Object.tile_shape_join = bpy.props.BoolProperty(name="join")
 	bpy.types.Object.tile_shape_left = bpy.props.BoolProperty(name="left")
 	bpy.types.Object.tile_shape_right = bpy.props.BoolProperty(name="right")
@@ -153,7 +156,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
-	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}, 'labels':{}}
+	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}, 'labels':{}, 'meshes':[]}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -681,6 +684,9 @@ num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=True, gpencil=None, use_mesh=True, info=None):
 	global num_tiles, num_mystic, num_mystic_prime, num_flips
 	num_tiles += 1
+	if GLOBALS['max-tile'] is not None:
+		if num_tiles > GLOBALS['max-tile']:
+			return
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
 	try:
 		color_array = spectre.get_color_array(tile_transformation, label)
@@ -802,7 +808,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		ax /= len(verts)
 		az /= len(verts)
 
-		if GLOBALS['plot-labels']:
+		if GLOBALS['plot-labels'] or GLOBALS['gpen-fills']:
 			frame = gpencil.data.layers[label+'.COLORS'].frames[0]
 			if label not in bpy.data.materials:
 				mat = bpy.data.materials.new(name=label)
@@ -822,15 +828,17 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 
 		if prime:
-			frame = gpencil.data.layers[label+'.PRIMES'].frames[0]
-			if is_mystic:
-				stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
-			else:
-				stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
+			if GLOBALS['plot-labels'] or GLOBALS['gpen-fills']:
+				frame = gpencil.data.layers[label+'.PRIMES'].frames[0]
+				if is_mystic:
+					stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
+				else:
+					stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
 
 		if is_flip:
-			frame = gpencil.data.layers['FLIPS'].frames[0]
-			stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=2)
+			if GLOBALS['plot-labels'] or GLOBALS['gpen-fills']:
+				frame = gpencil.data.layers['FLIPS'].frames[0]
+				stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=2)
 
 		#if is_mystic:
 		#	frame = gpencil.data.layers['MYSTICS'].frames[0]
@@ -842,22 +850,22 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		if show_num:
 			frame = gpencil.data.layers['NOTES'].frames[0]
 			X = 0
-			info = str(num_tiles)
+			txt = str(num_tiles)
 			font_scale = 2.0
 			lw = 100
 			if is_mystic:
-				#info = '★' + info
+				#txt = '★' + info
 				font_scale *= 2
 			if prime:
-				#info += '★'
+				#txt += '★'
 				font_scale *= 1.2
 				lw *= 1.5
 			if is_flip:
-				#info += '★'
+				#txt += '★'
 				font_scale *= 1.2
 				lw *= 1.2
 
-			for char in info:
+			for char in txt:
 				assert char in grease_font
 				arr = grease_font[char]
 				stroke = frame.strokes.new()
@@ -897,12 +905,18 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		obj.tile_angle = rot
 		obj.tile_x = tile_transformation[0][-1]
 		obj.tile_y = tile_transformation[1][-1]
+		if info:
+			info['meshes'].append(obj)
 
 		if is_mystic:
 			obj.tile_mystic=True
 
-		tag = ','.join([str(v) for v in color_array])
-		mat = smaterial(tag, color_array)
+		if is_flip:
+			mat = smaterial('FLIP', [1,0,1])
+			obj.tile_flip = True
+		else:
+			tag = ','.join([str(v) for v in color_array])
+			mat = smaterial(tag, color_array)
 		obj.data.materials.append(mat)
 
 		#print(rot, scl)
@@ -1856,7 +1870,7 @@ if __name__ == '__main__':
 			area.spaces[0].overlay.show_relationship_lines = False
 			area.spaces[0].overlay.show_floor = False
 			area.spaces[0].shading.background_type = 'VIEWPORT'
-			white = 0.3
+			white = 0.8
 			area.spaces[0].shading.background_color = [white]*3
 
 
@@ -1927,6 +1941,14 @@ if __name__ == '__main__':
 			layer_names.append('iteration:%s\ntiles:%s\nmystics:%s' % (i, o['num_tiles'], len(o['mystics'])))
 
 			o['gpencil'].location.y = Y
+			for me in o['meshes']:
+				if not me.parent:
+					me.parent = o['gpencil']
+					if me.tile_mystic and me.tile_flip:
+						me.location.y += 14
+						me.modifiers['solid'].thickness = 15
+					else:
+						me.location.y += 0.5
 			Y -= ystep
 			if GLOBALS['gpen-smooth']:
 				mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
@@ -2108,8 +2130,15 @@ if __name__ == '__main__':
 				)
 
 			if GLOBALS['plot-labels']:
-				for o in spectre_layers:
-
+				for oidx, o in enumerate(spectre_layers):
+					bpy.ops.object.empty_add()
+					parent = bpy.context.active_object
+					parent.parent = o['gpencil']
+					parent.name = 'plots'
+					parent.location.x = -20 * oidx
+					parent.location.x -= 10
+					if oidx >= 4:
+						parent.location.x -= 50
 					values = []
 					names = []
 					colors = []
@@ -2125,8 +2154,8 @@ if __name__ == '__main__':
 						colors=colors,
 						save=True
 					)
-					ob = show_plot(png, x=-80, scale=40, z=70)
-					ob.parent = o['gpencil']
+					ob = show_plot(png, x=-80, scale=50, z=70)
+					ob.parent = parent
 
 
 					z = 10
@@ -2148,7 +2177,7 @@ if __name__ == '__main__':
 							save=True
 						)
 						ob = show_plot(png, x=x, scale=20, z=z)
-						ob.parent = o['gpencil']
+						ob.parent = parent
 						ob.name = label
 						z -= 20
 						if lidx == 4:
