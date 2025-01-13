@@ -18,6 +18,7 @@ OPTIONS:
 	--rotation    set rotation of base meta tiles
 	--clear       clears tile metadata from objects
 	--gpencil     tiles as single grease pencil object
+	--minimal     only generate minimal grease pencil object
 	--numbers     number tiles (grease pencil)
 	--num-mystic  number only mystic tiles
 	--plot        use matplotlib
@@ -43,11 +44,36 @@ else:
 		elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
 			BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
 
+AUTO_SHAPES = False
+SHAPE_TEST = False
+RENDER_TEST = False
+DEBUG_NUM = True
+USE_PRINT = False
+MAKE_SHAPES = True
+DEBUG_DATA = False
+USE_NUM = False
+USE_NUM_MYSTIC = False
+MYSTIC_FONT_SCALE = 10
+GPEN_TILE_LW = 100
+CALC_ALL_PRIMES = True
+GAMMA2_ONLY = False
+PLOT_PERCENTS = False
+GLOBALS = {
+	'minimal'     : False,
+	'gpencil'     : False,
+	'plot'        : False,
+	'gpen-smooth' : False,
+	'plot-labels' : True,
+	'plot-labels-radius' : 1.5,
+}
 
 if '--help' in sys.argv:
 	print(__doc__)
 	print('script dir:', _thisdir)
 	print('blender path:', BLENDER)
+	print('DEFAULTS:')
+	for key in GLOBALS:
+		print('\t--%s\t\t(default=%s)' %(key, GLOBALS[key]))
 	sys.exit()
 
 import math, subprocess, functools
@@ -86,23 +112,7 @@ if bpy:
 	bpy.types.Object.tile_shape_border_right = bpy.props.BoolProperty(name="border right")
 	bpy.types.Object.tile_shape_index = bpy.props.IntProperty(name='shape index')
 
-AUTO_SHAPES = False
-SHAPE_TEST = False
-RENDER_TEST = False
-DEBUG_NUM = True
-USE_PRINT = False
-MAKE_SHAPES = True
-USE_GPEN = False
-DEBUG_DATA = False
-USE_NUM = False
-USE_NUM_MYSTIC = False
-MYSTIC_FONT_SCALE = 10
-GPEN_TILE_LW = 100
-CALC_ALL_PRIMES = True
-USE_MATPLOT = False
-USE_GPEN_SMOOTH = False
-GAMMA2_ONLY = False
-PLOT_PERCENTS = False
+
 
 grease_font = {
 	'0' : [[-0.08, 0.81], [0.04, 0.86], [0.19, 0.86], [0.36, 0.75], [0.44, 0.6], [0.45, 0.31], [0.43, -0.68], [0.36, -0.89], [0.19, -1.0], [-0.08, -0.95], [-0.22, -0.78], [-0.31, -0.6], [-0.34, -0.31], [-0.35, 0.36], [-0.31, 0.57], [-0.21, 0.74], [-0.09, 0.8]],
@@ -143,7 +153,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
-	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}}
+	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}, 'labels':{}}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -167,9 +177,10 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	print(f"supertiling loop took {round(time1, 4)} seconds")
 
 
-	if USE_GPEN:
+	if GLOBALS['gpencil']:
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		g = bpy.context.object
+		g.name='iteration(%s)' % iterations
 		mat = bpy.data.materials.new(name="MYSTICS")
 		bpy.data.materials.create_gpencil_data(mat)
 		mat.grease_pencil.show_fill = True
@@ -196,6 +207,13 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 
 		for label in 'Theta Lambda Pi Xi Gamma1 Gamma2 Sigma Phi Delta Psi'.split():
 			glayer = g.data.layers.new(label+'.PRIMES')
+			gframe = glayer.frames.new(1)
+			if GAMMA2_ONLY:
+				if label != 'Gamma2':
+					glayer.hide=True
+
+			glayer = g.data.layers.new(label+'.COLORS')
+			glayer.blend_mode = 'ADD'
 			gframe = glayer.frames.new(1)
 			if GAMMA2_ONLY:
 				if label != 'Gamma2':
@@ -703,34 +721,48 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		'index':num_tiles, 
 		'rot':rot, 'x':x, 'y':y,
 		'verts': verts,
+		'label': label,
 	}
+	if info:
+		if label not in info['labels']:
+			info['labels'][label] = {'tiles':[], 'primes':{}, 'flips':{}, 'mystics':{}, 'mystic-flips':{}, 'mystic-primes':{}, 'mystic-prime-flips':{}}
+		info['labels'][label]['tiles'].append(minfo)
 
 	if CALC_ALL_PRIMES and info:
 		prime = is_prime(num_tiles)
 		if prime:
+			minfo['prime']=True
 			info['all-primes'][num_tiles]=minfo
+			info['labels'][label]['primes'][num_tiles]=minfo
 
 	if is_flip:
 		minfo['flip']=True
-		if info: info['flips'][num_tiles]=minfo
+		if info:
+			info['flips'][num_tiles]=minfo
+			info['labels'][label]['flips'][num_tiles]=minfo
 
 	if is_mystic:
 		prime = is_prime(num_tiles)
 		if prime:
 			num_mystic_prime += 1
-			minfo['prime']=True
-			if info: info['primes'][num_tiles]=minfo
+			if info:
+				info['primes'][num_tiles]=minfo
+				info['labels'][label]['mystic-primes'][num_tiles]=minfo
 		else:
 			num_mystic += 1
 		if is_flip:
 			#raise RuntimeError(num_tiles)
 			if info:
 				info['mystic-flips'][num_tiles]=minfo
+				info['labels'][label]['mystic-flips'][num_tiles]=minfo
+
 				if prime:
 					info['mystic-prime-flips'][num_tiles]=minfo
+					info['labels'][label]['mystic-prime-flips'][num_tiles]=minfo
 
 		if info:
 			info['mystics'][num_tiles]=minfo
+			info['labels'][label]['mystics'][num_tiles]=minfo
 
 	if gpencil:
 		verts = []
@@ -770,12 +802,31 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		ax /= len(verts)
 		az /= len(verts)
 
+		if GLOBALS['plot-labels']:
+			frame = gpencil.data.layers[label+'.COLORS'].frames[0]
+			if label not in bpy.data.materials:
+				mat = bpy.data.materials.new(name=label)
+				bpy.data.materials.create_gpencil_data(mat)
+				mat.grease_pencil.show_fill = True
+				mat.grease_pencil.show_stroke = False
+				r,g,b = spectre.COLOR_MAP[label]
+				mat.grease_pencil.fill_color = [r,g,b, 0.9]
+			if label not in gpencil.data.materials:
+				mat = bpy.data.materials[label]
+				gpencil.data.materials.append(mat)
+
+			for idx,m in enumerate(gpencil.data.materials):
+				if m.name==label:
+					stroke_circle(frame, ax*scale, az*scale, radius=GLOBALS['plot-labels-radius'], material_index=idx)
+					break
+
+
 		if prime:
 			frame = gpencil.data.layers[label+'.PRIMES'].frames[0]
 			if is_mystic:
-				stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=3)
+				stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
 			else:
-				stroke_circle(frame, ax*scale, az*scale, radius=2, material_index=3)
+				stroke_circle(frame, ax*scale, az*scale, radius=0.5, material_index=3)
 
 		if is_flip:
 			frame = gpencil.data.layers['FLIPS'].frames[0]
@@ -820,7 +871,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 					stroke.points[i].co.z = (y+az) * scale
 				X += font_scale
 
-		if GPEN_ONLY:
+		if GLOBALS['minimal']:
 			return
 
 	if use_mesh:
@@ -1676,12 +1727,12 @@ def interpolate_points(a, b):
 	return ret
 
 NUM_PLOTS = 0
-def ploter(title, ylabel, names, values, overlays=None, save=None):
+def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None):
 	global NUM_PLOTS
 	fig, ax = plt.subplots()
 	ax.set_title(title)
 	ax.set_ylabel(ylabel)
-	ax.bar(names, values)
+	ax.bar(names, values, color=colors)
 	for i,rect in enumerate(ax.patches):
 		x = rect.get_x()
 		if type(values[i]) is not float:
@@ -1720,13 +1771,14 @@ def ploter(title, ylabel, names, values, overlays=None, save=None):
 	else:
 		plt.show()
 
-def show_plot(png, x=0, y=0, z=70):
+def show_plot(png, x=0, y=0, z=70, scale=100):
 	bpy.ops.object.empty_add(type='IMAGE')
 	ob = bpy.context.active_object
 	ob.data = bpy.data.images.load(png)
 	ob.rotation_euler.x = math.pi / 2
-	ob.scale *= 100
+	ob.scale *= scale
 	ob.location = [x,y,z]
+	return ob
 
 
 if __name__ == '__main__':
@@ -1744,6 +1796,11 @@ if __name__ == '__main__':
 			k = k[2:]
 			if k=='layer-expand':
 				layers_expand = float(v)
+			elif k in GLOBALS:
+				if '.' in v:
+					GLOBALS[k]= float(v)
+				else:
+					GLOBALS[k]= int(v)
 			elif k=='iterations':
 				if ',' in v:
 					layers = [int(a) for a in v.split(',')]
@@ -1765,10 +1822,10 @@ if __name__ == '__main__':
 		elif arg == '--clear':
 			clear_tiles = True
 			args.append(arg)
-		elif arg == '--gpencil':
-			USE_GPEN = True
-			GPEN_ONLY = True
-			args.append(arg)
+		#elif arg == '--gpencil':
+		#	USE_GPEN = True
+		#	GPEN_ONLY = True
+		#	args.append(arg)
 		elif arg == '--numbers':
 			USE_GPEN = True
 			USE_NUM = True
@@ -1777,11 +1834,8 @@ if __name__ == '__main__':
 			USE_GPEN = True
 			USE_NUM_MYSTIC = True
 			args.append(arg)
-		elif arg == '--plot':
-			USE_MATPLOT = True
-			args.append(arg)
-		elif arg == '--gpencil-smooth':
-			USE_GPEN_SMOOTH = True
+		elif len(arg) > 3 and arg.startswith('--') and arg[2:] in GLOBALS:
+			GLOBALS[arg[2:]] = True
 			args.append(arg)
 
 	if not bpy:
@@ -1796,6 +1850,15 @@ if __name__ == '__main__':
 
 	if 'Cube' in bpy.data.objects:
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
+
+	for area in bpy.data.screens['Layout'].areas:
+		if area.type == 'VIEW_3D':
+			area.spaces[0].overlay.show_relationship_lines = False
+			area.spaces[0].overlay.show_floor = False
+			area.spaces[0].shading.background_type = 'VIEWPORT'
+			white = 0.3
+			area.spaces[0].shading.background_color = [white]*3
+
 
 	if clear_tiles:
 		## if loading from command line a .blend file with cached tiles
@@ -1854,17 +1917,18 @@ if __name__ == '__main__':
 		layer_num_mystic_prime_flips_percent = []
 		layer_num_mystic_prime_flips_overlay = []
 
+		spectre_layers = []
 		for i in layers:
 			kwargs['iterations']=i
 			if i >= 3:
 				nurbs_trace = False
 			o = build_tiles(**kwargs)
-
+			spectre_layers.append(o)
 			layer_names.append('iteration:%s\ntiles:%s\nmystics:%s' % (i, o['num_tiles'], len(o['mystics'])))
 
 			o['gpencil'].location.y = Y
 			Y -= ystep
-			if USE_GPEN_SMOOTH:
+			if GLOBALS['gpen-smooth']:
 				mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
 				mod.level = 2
 				mod = o['gpencil'].grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
@@ -1959,7 +2023,7 @@ if __name__ == '__main__':
 
 			prev_layer = o
 
-		if matplotlib and USE_MATPLOT:
+		if matplotlib and GLOBALS['plot']:
 			png = ploter(
 				'number of primes for each iteration',
 				'number of primes',
@@ -2043,11 +2107,56 @@ if __name__ == '__main__':
 					layer_names, layer_num_mystic_prime_flips_percent,
 				)
 
+			if GLOBALS['plot-labels']:
+				for o in spectre_layers:
+
+					values = []
+					names = []
+					colors = []
+					for lidx, label in enumerate(o['labels']):
+						names.append(label)
+						colors.append( spectre.COLOR_MAP[label] )
+						values.append( len(o['labels'][label]['tiles']) )
+
+					png = ploter(
+						'groups',
+						'number',
+						names, values,
+						colors=colors,
+						save=True
+					)
+					ob = show_plot(png, x=-80, scale=40, z=70)
+					ob.parent = o['gpencil']
+
+
+					z = 10
+					x = -100
+					for lidx, label in enumerate(o['labels']):
+						values = []
+						names = []
+						colors = [spectre.COLOR_MAP[label]]
+						for key in 'tiles primes mystics flips mystic-prime-flips'.split():
+							v = len(o['labels'][label][key])
+							values.append(v)
+							names.append(key)
+
+						png = ploter(
+							'group %s' %(label),
+							'number',
+							names, values,
+							colors=colors,
+							save=True
+						)
+						ob = show_plot(png, x=x, scale=20, z=z)
+						ob.parent = o['gpencil']
+						ob.name = label
+						z -= 20
+						if lidx == 4:
+							x += 30
+							z = 10
+
 
 	elif jfile:
-		for area in bpy.data.screens['Layout'].areas:
-			if area.type == 'VIEW_3D':
-				area.spaces[0].overlay.show_relationship_lines = False
 		import_json( jfile )
 	elif '--print' in sys.argv:
 		RENDER_TEST = True
