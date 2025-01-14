@@ -183,6 +183,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	if GLOBALS['gpencil']:
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		g = bpy.context.object
+		g.select_set(False)
 		g.name='iteration(%s)' % iterations
 		mat = bpy.data.materials.new(name="MYSTICS")
 		bpy.data.materials.create_gpencil_data(mat)
@@ -954,6 +955,8 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_pa
 	import json
 	print('loading:',jfile)
 	dump = json.loads(open(jfile).read())
+	print('tiles:', len(dump['tiles']))
+
 	if len(dump['tiles']):
 		bpy.ops.object.gpencil_add(type="EMPTY")
 		gpencil = bpy.context.active_object
@@ -1026,7 +1029,7 @@ def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_pa
 		root.name='SHAPE:%s' % shape_name
 
 		for o in dump['shapes'][shape_name]:
-			print('	TILE:', o['name'])
+			#print('	TILE:', o['name'])
 			trans = spectre.trot( o['angle'] )
 			trans[0][-1] = o['x']
 			trans[1][-1] = o['y']
@@ -1380,6 +1383,46 @@ def mkshapes(shapes=5):
 		bpy.data.objects.remove( ob )
 
 
+def shaper( world ):
+	col = world.tile_active_collection
+	print('shaper:', col)
+
+	curves = []
+	left = []
+	left_bor = []
+	right = []
+	right_bor = []
+
+	for ob in bpy.data.objects:
+		if not ob.tile_index: continue
+		if ob.tile_collection != col: continue
+		print('	tile:', ob)
+		if ob.tile_shape_border_left:
+			left_bor.append(ob)
+		elif ob.tile_shape_border_right:
+			right_bor.append(ob)
+		elif ob.tile_shape_left:
+			left.append(ob)
+		elif ob.tile_shape_right:
+			right.append(ob)
+		else:
+			raise RuntimeError(ob)
+
+	print('left:', len(left))
+	print('right:', len(right))
+
+	print('left border:', len(left_bor))
+	print('right border:', len(right_bor))
+
+
+	if len(left_bor) > 1:
+		cu = trace_tiles(left_bor)
+	if len(right_bor) > 1:
+		cu = trace_tiles(right_bor)
+
+
+
+
 if bpy:
 	@bpy.utils.register_class
 	class TilesPanel(bpy.types.Panel):
@@ -1649,6 +1692,16 @@ if bpy:
 
 			return {"FINISHED"}
 
+	@bpy.utils.register_class
+	class SpecShaper(bpy.types.Operator):
+		bl_idname = "spectre.shaper"
+		bl_label = "Trace Shape"
+		@classmethod
+		def poll(cls, context):
+			return True
+		def execute(self, context):
+			shaper( context.world )
+			return {"FINISHED"}
 
 
 	@bpy.utils.register_class
@@ -1659,7 +1712,10 @@ if bpy:
 		bl_region_type = "WINDOW"
 		bl_context = "world"
 		def draw(self, context):
-			self.layout.prop(context.world, 'tile_active_collection')
+			box = self.layout.box()
+			box.label(text="Shape:")
+			box.prop(context.world, 'tile_active_collection')
+			box.operator("spectre.shaper")
 
 			box = self.layout.box()
 			box.label(text="Export:")
