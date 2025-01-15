@@ -88,6 +88,7 @@ except:
 
 try:
 	import matplotlib
+	import matplotlib.pyplot as plt
 except:
 	matplotlib = None
 
@@ -97,6 +98,8 @@ if bpy:
 	bpy.types.World.tile_active_collection = bpy.props.PointerProperty(name="active shape", type=bpy.types.Collection)
 	bpy.types.World.tile_export_path = bpy.props.StringProperty(name="export path")
 	bpy.types.World.tile_import_path = bpy.props.StringProperty(name="import path")
+	bpy.types.World.tile_trace_smooth = bpy.props.FloatProperty(name="trace smooth", default=1)
+	bpy.types.World.tile_trace_smooth_iter = bpy.props.IntProperty(name="smooth iterations", default=3)
 	bpy.types.World.tile_generate_steps = bpy.props.IntProperty(name="generate steps", default=2)
 	bpy.types.World.tile_generate_gizmos = bpy.props.BoolProperty(name="generate gizmos")
 	bpy.types.Object.tile_index = bpy.props.IntProperty(name='tile index')
@@ -1166,7 +1169,7 @@ def create_mesh_tile(o, scale=0.1):
 	bpy.context.collection.objects.link(obj)
 	return obj
 
-def trace_tiles( tiles, space_tiles=None, inner=False, debug=True ):
+def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, smooth_iterations=3 ):
 	print('trace_tiles:', tiles)
 	bpy.ops.object.select_all(action='DESELECT')
 	tmp = []
@@ -1224,16 +1227,15 @@ def trace_tiles( tiles, space_tiles=None, inner=False, debug=True ):
 			bpy.context.scene.collection.objects.link(copy)
 			copy.select_set(False)
 			mod = copy.modifiers.new(name='smooth', type="SMOOTH")
-			mod.factor = 1
-			mod.iterations = 3
-
+			mod.factor = smooth
+			mod.iterations = smooth_iterations
 			mod = copy.modifiers.new(name='wire', type="WIREFRAME")
 			mod.thickness=0.5
 
 
 		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
-		mod.factor = 1
-		mod.iterations = 3
+		mod.factor = smooth
+		mod.iterations = smooth_iterations
 		bpy.ops.object.modifier_apply(modifier=mod.name)
 
 		bpy.ops.object.convert(target="CURVE")
@@ -1393,10 +1395,15 @@ def shaper( world ):
 	right = []
 	right_bor = []
 
+	ax=ay=az= 0.0
 	for ob in bpy.data.objects:
 		if not ob.tile_index: continue
 		if ob.tile_collection != col: continue
 		print('	tile:', ob)
+		x,y,z = ob.location
+		ax += x
+		ay += y
+		az += z
 		if ob.tile_shape_border_left:
 			left_bor.append(ob)
 		elif ob.tile_shape_border_right:
@@ -1408,20 +1415,113 @@ def shaper( world ):
 		else:
 			raise RuntimeError(ob)
 
+	n = len(left) + len(right) + len(left_bor) + len(right_bor)
+	ax /= n
+	ay /= n
+	az /= n
 	print('left:', len(left))
 	print('right:', len(right))
-
 	print('left border:', len(left_bor))
 	print('right border:', len(right_bor))
 
-
+	names = []
+	values = []
+	colors = []
 	if len(left_bor) > 1:
-		cu = trace_tiles(left_bor)
+		cu = trace_tiles(
+			left_bor, 
+			smooth=world.tile_trace_smooth, 
+			smooth_iterations=world.tile_trace_smooth_iter
+		)
+		c = calc_curve_lengths(cu)
+		if len(c) == 2:
+			names += ['left\ninner', 'left\nouter', 'left\ntotal']
+			r,g,b,_ = bpy.data.materials['LEFT_EDGE'].diffuse_color
+			colors.append( [r,g,b,0.5] )
+			colors.append( [r,g,b,0.5] )
+			colors.append( [r,g,b,0.5] )
+			values += c + [sum(c)]
+
 	if len(right_bor) > 1:
-		cu = trace_tiles(right_bor)
+		cu = trace_tiles(
+			right_bor,
+			smooth=world.tile_trace_smooth, 
+			smooth_iterations=world.tile_trace_smooth_iter
+		)
+		c = calc_curve_lengths(cu)
+		if len(c) == 2:
+			names += ['right\ninner', 'right\nouter', 'right\ntotal']
+			r,g,b,_ = bpy.data.materials['RIGHT_EDGE'].diffuse_color
+			colors.append( [r,g,b,0.5] )
+			colors.append( [r,g,b,0.5] )
+			colors.append( [r,g,b,0.5] )
+			values += c + [sum(c)]
+
+	print(names, values, colors)
+	png = ploter(
+		'left and right shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(world.tile_trace_smooth, world.tile_trace_smooth_iter),
+		'length',
+		names, values,
+		colors=colors,
+		save=True
+	)
+	show_plot(png, x=ax-40, y=ay-2, z=az-10, scale=30)
+	la = {}
+	ra = {}
+	avgl = avgr = 0
+	for ob in left_bor:
+		angle = ob.tile_angle
+		avgl += angle
+		if angle not in la:
+			la[angle] = []
+		la[angle].append( ob )
+	for ob in right_bor:
+		angle = ob.tile_angle
+		avgr += angle
+		if angle not in ra:
+			ra[angle] = []
+		ra[angle].append( ob )
+
+	avgl /= len(left_bor)
+	avgr /= len(right_bor)
+
+	names = []
+	values = []
+	colors = []
+
+	a = list(la.keys())
+	a.sort()
+	for ang in a:
+		names.append('%s°' % ang)
+		values.append(len(la[ang]))
+		r,g,b,_ = bpy.data.materials['LEFT_EDGE'].diffuse_color
+		colors.append( [r,g,b,0.5] )
+	a = list(ra.keys())
+	a.sort()
+	for ang in a:
+		names.append('%s°' % ang)
+		values.append(len(ra[ang]))
+		r,g,b,_ = bpy.data.materials['RIGHT_EDGE'].diffuse_color
+		colors.append( [r,g,b,0.5] )
+	png = ploter(
+		'left and right shape border tiles angles\naverage left=%s° average right=%s°' %(round(avgl,3), round(avgr,3)),
+		'number of tiles',
+		names, values,
+		colors=colors,
+		save=True
+	)
+	show_plot(png, x=ax-40, y=ay-2, z=az+20, scale=30)
 
 
 
+def calc_curve_lengths(ob):
+	lengths = []
+	for sidx, spline in enumerate(ob.data.splines):
+		if spline.use_cyclic_u:
+			a = spline.calc_length()
+			lengths.append(a)
+	lengths.sort()
+	return lengths
 
 if bpy:
 	@bpy.utils.register_class
@@ -1715,6 +1815,8 @@ if bpy:
 			box = self.layout.box()
 			box.label(text="Shape:")
 			box.prop(context.world, 'tile_active_collection')
+			box.prop(context.world, 'tile_trace_smooth')
+			box.prop(context.world, 'tile_trace_smooth_iter')
 			box.operator("spectre.shaper")
 
 			box = self.layout.box()
@@ -1805,7 +1907,9 @@ def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None):
 	ax.bar(names, values, color=colors)
 	for i,rect in enumerate(ax.patches):
 		x = rect.get_x()
-		if type(values[i]) is not float:
+		if type(values[i]) is float:
+			ax.text(x, rect.get_height(), '%s' % round(values[i],5), fontsize=10)
+		else:
 			ax.text(x, rect.get_height(), '%s' % values[i], fontsize=10)
 		if not overlays: continue
 		if overlays[i]:
@@ -1954,8 +2058,6 @@ if __name__ == '__main__':
 	print('kwargs:', kwargs)
 	if layers:
 		print('matplotlib:', matplotlib)
-		if matplotlib:
-			import matplotlib.pyplot as plt
 
 		nurbs_trace = True
 		prime_trace = True
