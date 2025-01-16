@@ -1899,12 +1899,14 @@ def interpolate_points(a, b):
 	return ret
 
 NUM_PLOTS = 0
-def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None):
+def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, rotate_labels=0):
 	global NUM_PLOTS
 	fig, ax = plt.subplots()
 	ax.set_title(title)
 	ax.set_ylabel(ylabel)
 	ax.bar(names, values, color=colors)
+	if rotate_labels:
+		plt.xticks(rotation=rotate_labels)
 	for i,rect in enumerate(ax.patches):
 		x = rect.get_x()
 		if type(values[i]) is float:
@@ -2353,8 +2355,78 @@ if __name__ == '__main__':
 	elif 'iterations' in kwargs:
 		tmp = '/tmp/spectre.%s.blend' % kwargs['iterations']
 		#if not os.path.isfile(tmp):
-		build_tiles(**kwargs)
+		o = build_tiles(**kwargs)
 		bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
+		if matplotlib and GLOBALS['plot']:
+			pngs = []
+			rot = 30  ## default rotation
+			if 'rotation' in kwargs:
+				rot = kwargs['rotation']
+			title = 'iteration:%s rotation:%s°\ntiles:%s mystics:%s' % (kwargs['iterations'], rot, o['num_tiles'], len(o['mystics']))
 
-	#else:
-	#	build_tiles(**kwargs)
+			names = ['mystics', 'primes', 'mystic\nprimes', 'flips', 'mystic\nprime\nflips']
+			values = [
+				len(o['mystics']),
+				len(o['all-primes']),
+				len(o['primes']),
+				len(o['flips']),
+				len(o['mystic-prime-flips']),
+			]
+
+			png = ploter(
+				title,
+				'count',
+				names, values,
+				colors=['blue', 'cyan', 'yellow', 'violet', 'brown'],
+				save=True,
+				rotate_labels=0
+			)
+			pngs.append(png)
+
+
+			names = []
+			values = []
+			colors = []
+			for lidx, label in enumerate(o['labels']):
+				for kidx, key in enumerate('tiles primes mystics flips'.split()):
+					v = len(o['labels'][label][key])
+					values.append(v)
+					if kidx==0:
+						names.append(label)
+					else:
+						names.append('%s:%s' %(label,key))
+					colors.append(spectre.COLOR_MAP[label])
+
+			png = ploter(
+				title,
+				'count',
+				names, values,
+				colors=colors,
+				save=True,
+				rotate_labels=60
+			)
+			pngs.append(png)
+
+			names = []
+			values = []
+			colors = []
+			for lidx, label in enumerate(o['labels']):
+				a = len(o['labels'][label]['tiles'])
+				b = len(o['labels'][label]['primes'])
+				values.append( b / a )
+				names.append(label)
+				colors.append(spectre.COLOR_MAP[label])
+
+			png = ploter(
+				title,
+				'percent',
+				names, values,
+				colors=colors,
+				save=True,
+				rotate_labels=45
+			)
+			pngs.append(png)
+			z = 70
+			for png in pngs:
+				ob = show_plot(png, x=-40, y=-1, z=z, scale=50)
+				z -= 42
