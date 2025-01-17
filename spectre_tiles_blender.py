@@ -67,6 +67,8 @@ GLOBALS = {
 	'plot-labels' : False,
 	'plot-labels-radius' : 1,
 	'max-tile' : None,
+	'order-expand' : 0,
+	'trace' : False,
 }
 
 if '--help' in sys.argv:
@@ -159,7 +161,10 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 	ITER = iterations
 	num_tiles = num_mystic = num_mystic_prime = num_flips = 0
 	TRACE = []
-	ret = {'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}, 'labels':{}, 'meshes':[]}
+	ret = {
+		'primes':{}, 'mystics':{}, 'flips':{}, 'all-primes':{}, 'mystic-flips':{}, 'mystic-prime-flips':{}, 'labels':{}, 'meshes':[],
+		'rotation':rotation, 'alpha':a, 'beta':b, 'iterations':iterations, 'trace':[],
+	}
 
 	if USE_PRINT:
 		cam = bpy.data.objects['Camera']
@@ -729,7 +734,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	minfo = {
 		'index':num_tiles, 
-		'rot':rot, 'x':x, 'y':y,
+		'rot':rot, 'x':ax, 'y':ay,
 		'verts': verts,
 		'label': label,
 	}
@@ -737,6 +742,7 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 		if label not in info['labels']:
 			info['labels'][label] = {'tiles':[], 'primes':{}, 'flips':{}, 'mystics':{}, 'mystic-flips':{}, 'mystic-primes':{}, 'mystic-prime-flips':{}}
 		info['labels'][label]['tiles'].append(minfo)
+		info['trace'].append(minfo)
 
 	if CALC_ALL_PRIMES and info:
 		prime = is_prime(num_tiles)
@@ -776,9 +782,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	if gpencil:
 		verts = []
+		z = num_tiles * GLOBALS['order-expand']
 		for v in vertices:
 			x,y = v
-			verts.append([x,0,y])
+			verts.append([x,z,y])
 
 		show_num = USE_PRINT or USE_NUM or (USE_NUM_MYSTIC and is_mystic)
 		line_width = GPEN_TILE_LW
@@ -888,9 +895,11 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	if use_mesh:
 		verts = []
+		z = num_tiles * GLOBALS['order-expand']
+
 		for v in vertices:
 			x,y = v
-			verts.append([x*scale,0,y*scale])
+			verts.append([x*scale,z*scale,y*scale])
 
 		faces = [
 			list(range(len(verts)))
@@ -1899,7 +1908,7 @@ def interpolate_points(a, b):
 	return ret
 
 NUM_PLOTS = 0
-def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, rotate_labels=0):
+def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, rotate_labels=0, bottom=0.15):
 	global NUM_PLOTS
 	fig, ax = plt.subplots()
 	ax.set_title(title)
@@ -1921,7 +1930,7 @@ def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, 
 			if txt:
 				tx = []
 				lines = txt.splitlines()
-				if len(lines) > 20:
+				if len(lines) >= 20:
 					y = rect.get_y()
 				for ln in lines:
 					if len(ln) > 30:
@@ -1933,7 +1942,7 @@ def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, 
 						break
 				txt = '\n'.join(tx)
 				ax.text(x, y, txt+'\n', fontsize=8)
-	fig.subplots_adjust(bottom=0.15)
+	fig.subplots_adjust(bottom=bottom)
 	NUM_PLOTS += 1
 	if save:
 		if save is True:
@@ -1943,11 +1952,12 @@ def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, 
 			#bbox_inches='tight', 
 			pad_inches=1,
 		)
+		plt.close(fig)
 		return save
 	else:
 		plt.show()
 
-def show_plot(png, x=0, y=0, z=70, scale=100):
+def show_plot(png, x=0, y=0, z=70, scale=40):
 	bpy.ops.object.empty_add(type='IMAGE')
 	ob = bpy.context.active_object
 	ob.data = bpy.data.images.load(png)
@@ -2092,11 +2102,17 @@ if __name__ == '__main__':
 		layer_num_mystic_prime_flips_overlay = []
 
 		spectre_layers = []
+
+		trace = []
+		Z = 0.0
 		for i in layers:
 			kwargs['iterations']=i
 			if i >= 3:
 				nurbs_trace = False
 			o = build_tiles(**kwargs)
+			for minfo in o['trace']:
+				trace.append( [minfo['x'],Z, minfo['y'], math.radians(minfo['rot']) ] )
+				Z -= 0.1
 			spectre_layers.append(o)
 			layer_names.append('iteration:%s\ntiles:%s\nmystics:%s' % (i, o['num_tiles'], len(o['mystics'])))
 
@@ -2205,9 +2221,16 @@ if __name__ == '__main__':
 
 			prev_layer = o
 
+		if GLOBALS['trace']:
+			trace_cu = create_bezier_curve(trace, extrude=0.5, depth=0.5)
+			trace_cu.name = 'events'
+			trace_cu.location.x = 100
+			trace_cu.scale.y = 3.3
+
 		if matplotlib and GLOBALS['plot']:
+			rot = o['rotation']
 			png = ploter(
-				'number of primes for each iteration',
+				'number of primes for each iteration\nrotation=%s' %(rot),
 				'number of primes',
 				layer_names, layer_num_all_primes,
 				layer_num_all_primes_overlay,
@@ -2224,13 +2247,13 @@ if __name__ == '__main__':
 
 
 			png = ploter(
-				'number of Mystic primes for each iteration',
+				'number of Mystic primes for each iteration\nrotation=%s' % rot,
 				'number of Mystic primes',
 				layer_names, layer_num_primes,
 				layer_num_primes_overlay,
 				save=True
 			)
-			show_plot(png, x = 100)
+			show_plot(png, x = 50)
 
 
 			if PLOT_PERCENTS:
@@ -2241,13 +2264,13 @@ if __name__ == '__main__':
 				)
 
 			png = ploter(
-				'number of -Y flips for each iteration',
+				'number of -Y flips for each iteration\nrotation=%s' % rot,
 				'number of flips',
 				layer_names, layer_num_flips,
 				layer_num_flips_overlay,
 				save=True
 			)
-			show_plot(png, x = 200)
+			show_plot(png, x = 100)
 
 			if PLOT_PERCENTS:
 				ploter(
@@ -2258,13 +2281,13 @@ if __name__ == '__main__':
 
 				
 			png = ploter(
-				'number of Mystic -Y flips for each iteration',
+				'number of Mystic -Y flips for each iteration\nrotation=%s' % rot,
 				'number of Mystic flips',
 				layer_names, layer_num_mystic_flips,
 				layer_num_mystic_flips_overlay,
 				save=True
 			)
-			show_plot(png, x = 300)
+			show_plot(png, x = 150)
 
 			if PLOT_PERCENTS:
 				ploter(
@@ -2274,13 +2297,13 @@ if __name__ == '__main__':
 				)
 
 			png = ploter(
-				'number of Mystic prime -Y flips for each iteration',
+				'number of Mystic prime -Y flips for each iteration=%s' % rot,
 				'number of Mystic prime flips',
 				layer_names, layer_num_mystic_prime_flips,
 				layer_num_mystic_prime_flips_overlay,
 				save=True
 			)
-			show_plot(png, x = 400)
+			show_plot(png, x = 200)
 
 			if PLOT_PERCENTS:
 				ploter(
@@ -2308,11 +2331,12 @@ if __name__ == '__main__':
 						values.append( len(o['labels'][label]['tiles']) )
 
 					png = ploter(
-						'groups',
+						'tile groups\niterations=%s rotation=%s' %(o['iterations'], rot),
 						'number',
 						names, values,
 						colors=colors,
-						save=True
+						save=True,
+						rotate_labels=45
 					)
 					ob = show_plot(png, x=-80, scale=50, z=70)
 					ob.parent = parent
@@ -2403,7 +2427,8 @@ if __name__ == '__main__':
 				names, values,
 				colors=colors,
 				save=True,
-				rotate_labels=60
+				rotate_labels=60,
+				bottom=0.3
 			)
 			pngs.append(png)
 
