@@ -1,8 +1,25 @@
 default:
-	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30
+	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
+
+layers:
+	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
+
+trace:
+	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
+
+order:
+	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --order-expand=1 --trace
+
+odd:
+	python3 spectre_tiles_blender.py --iterations=1,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
+even:
+	python3 spectre_tiles_blender.py --iterations=2,4 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
+
 
 level1:
 	python3 spectre_tiles_blender.py --iterations=1 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot
+level1_90:
+	python3 spectre_tiles_blender.py --iterations=1 --gpencil --gpen-fills=0 --num-mystic --rotation=90 --plot
 
 level2:
 	python3 spectre_tiles_blender.py --iterations=2 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot
