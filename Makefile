@@ -4,6 +4,9 @@ default:
 layers:
 	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
 
+layers4:
+	python3 spectre_tiles_blender.py --iterations=1,2,3,4 --plot --plot-labels --gpencil --minimal --num-mystic --rotation=30 --layer-expand=30 --trace
+
 trace:
 	python3 spectre_tiles_blender.py --iterations=1,2,3 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
 
@@ -43,3 +46,10 @@ level4:
 	python3 spectre_tiles_blender.py --iterations=4 --gpencil --gpen-fills=1 --num-mystic --rotation=30 --plot --minimal
 level5:
 	python3 spectre_tiles_blender.py --iterations=5 --gpencil --gpen-fills=1 --num-mystic --rotation=30 --plot --minimal
+
+new_shape:
+	python3 spectre_tiles_blender.py --iterations=3 --make-shapes
+
+load_shape:
+	echo '{"left":[72],"right":[257],"left_bor":[269,73,79,80,86,270,268],"right_bor":[278,251,258,256,279,250],"joins":[]}' > /tmp/tmp.json
+	python3 spectre_tiles_blender.py --iterations=3 /tmp/tmp.json --trace-shape
