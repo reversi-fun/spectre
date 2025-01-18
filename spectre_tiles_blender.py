@@ -49,7 +49,6 @@ SHAPE_TEST = False
 RENDER_TEST = False
 DEBUG_NUM = True
 USE_PRINT = False
-MAKE_SHAPES = True
 DEBUG_DATA = False
 USE_NUM = False
 USE_NUM_MYSTIC = False
@@ -59,6 +58,7 @@ CALC_ALL_PRIMES = True
 GAMMA2_ONLY = False
 PLOT_PERCENTS = False
 GLOBALS = {
+	'make-shapes' : False,
 	'minimal'     : False,
 	'gpencil'     : False,
 	'plot'        : False,
@@ -69,6 +69,7 @@ GLOBALS = {
 	'max-tile' : None,
 	'order-expand' : 0,
 	'trace' : False,
+	'trace-shape':False,
 }
 
 if '--help' in sys.argv:
@@ -225,7 +226,8 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 					glayer.hide=True
 
 			glayer = g.data.layers.new(label+'.COLORS')
-			glayer.blend_mode = 'ADD'
+			if not GLOBALS['minimal']:
+				glayer.blend_mode = 'ADD'
 			gframe = glayer.frames.new(1)
 			if GAMMA2_ONLY:
 				if label != 'Gamma2':
@@ -322,7 +324,7 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 			scn.render.filepath='/tmp/tiles.%s.png' % i
 			bpy.ops.render.render(write_still=True)
 
-	if MAKE_SHAPES:
+	if GLOBALS['make-shapes']:
 		build_shapes(iterations=iterations, gizmos=gizmos)
 
 	return ret
@@ -340,8 +342,8 @@ def build_shapes(iterations=3, sharp_nurb_shapes=False, gizmos=False):
 			if round(b.location.z,0) != round(a.location.z,0):
 				continue
 			b.tile_match_error = a.location.z - b.location.z
-			if not a.tile_pair:
-				a.tile_pair = b
+			#if not a.tile_pair:
+			#	a.tile_pair = b
 			hits.append(b)
 		if hits:
 			pairs[a] = hits
@@ -827,7 +829,10 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 				mat.grease_pencil.show_fill = True
 				mat.grease_pencil.show_stroke = False
 				r,g,b = spectre.COLOR_MAP[label]
-				mat.grease_pencil.fill_color = [r,g,b, 0.9]
+				if GLOBALS['minimal']:
+					mat.grease_pencil.fill_color = [r,g,b, 1]
+				else:
+					mat.grease_pencil.fill_color = [r,g,b, 0.9]
 			if label not in gpencil.data.materials:
 				mat = bpy.data.materials[label]
 				gpencil.data.materials.append(mat)
@@ -961,9 +966,32 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 			mod.thickness = -1
 			mod.use_rim_only = True
 
-		TRACE.append([obj, ob, rot, scl, tile_transformation])
+		if LOAD_SHAPES:
+			for sidx, shape in enumerate(LOAD_SHAPES):
+				if obj.tile_index in shape['left']:
+					obj.tile_shape_left = True
+					obj.color = [1,0,0, 1]
+					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+				if obj.tile_index in shape['right']:
+					obj.tile_shape_right = True
+					obj.color = [0,0,1, 1]
+					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+				if obj.tile_index in shape['left_bor']:
+					obj.tile_shape_border_left = True
+					obj.color = [1,0.5,0, 1]
+					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+				if obj.tile_index in shape['right_bor']:
+					obj.tile_shape_border_right = True
+					obj.color = [0,0.5,1, 1]
+					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+				if obj.tile_index in shape['joins']:
+					obj.tile_shape_join = True
+					obj.color = [0,1,0, 1]
+					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
 
-def import_json( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False, gizmos=False ):
+		#TRACE.append([obj, ob, rot, scl, tile_transformation])
+
+def import_json_broken( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False, gizmos=False ):
 	import json
 	print('loading:',jfile)
 	dump = json.loads(open(jfile).read())
@@ -1468,7 +1496,7 @@ def shaper( world ):
 
 	print(names, values, colors)
 	png = ploter(
-		'left and right shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(world.tile_trace_smooth, world.tile_trace_smooth_iter),
+		'left(%s) and right(%s) shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), world.tile_trace_smooth, world.tile_trace_smooth_iter),
 		'length',
 		names, values,
 		colors=colors,
@@ -1513,7 +1541,7 @@ def shaper( world ):
 		r,g,b,_ = bpy.data.materials['RIGHT_EDGE'].diffuse_color
 		colors.append( [r,g,b,0.5] )
 	png = ploter(
-		'left and right shape border tiles angles\naverage left=%s° average right=%s°' %(round(avgl,3), round(avgr,3)),
+		'left(%s) and right(%s) shape border tiles angles\naverage left=%s° average right=%s°' %(len(left_bor), len(right_bor) ,round(avgl,3), round(avgr,3)),
 		'number of tiles',
 		names, values,
 		colors=colors,
@@ -1847,8 +1875,54 @@ if bpy:
 			row.prop(context.world, 'tile_generate_gizmos')
 			box.operator("spectre.generate", icon="CONSOLE")
 
+LOAD_SHAPES = []
+def import_json(jfile):
+	import json
+	print('importing shape:', jfile)
+	shape = json.loads(open(jfile).read())
+	print(shape)
+	tag = 'shape(%s)' % len(LOAD_SHAPES)
+	col = bpy.data.collections.new(tag)
+	if not bpy.data.worlds[0].tile_active_collection:
+		bpy.data.worlds[0].tile_active_collection = col
+	LOAD_SHAPES.append(shape)
+
 
 def export_json(world):
+	col = world.tile_active_collection
+	if not col:
+		print('no collection selected for export')
+
+	shape = {'left':[],'right':[],'left_bor':[],'right_bor':[], 'joins':[]}
+	for ob in bpy.data.objects:
+		if ob.type != 'MESH' or ob.tile_collection != col:
+			continue
+		print('exporting:', ob)
+		assert ob.tile_index
+		if ob.tile_shape_border_left:
+			shape['left_bor'].append(ob.tile_index)
+		if ob.tile_shape_border_right:
+			shape['right_bor'].append(ob.tile_index)
+		if ob.tile_shape_left:
+			shape['left'].append(ob.tile_index)
+		if ob.tile_shape_right:
+			shape['right'].append(ob.tile_index)
+		if ob.tile_shape_join:
+			shape['joins'].append(ob.tile_index)
+	print(shape)
+	import json
+	if world.tile_export_path.strip():
+		tmp = world.tile_export_path.strip()
+		if tmp.startswith('~'): tmp = os.path.expanduser(tmp)
+		if not tmp.endswith('.json'): tmp += '.json'
+	else:
+		tmp = '/tmp/spectre.json'
+	dump = json.dumps( shape )
+	print('saving:', tmp)
+	open(tmp, 'wb').write(dump.encode('utf-8'))
+
+
+def export_json_broken(world):
 	import json
 	tiles = []
 	shapes = {}
@@ -1966,12 +2040,18 @@ def show_plot(png, x=0, y=0, z=70, scale=40):
 	ob.location = [x,y,z]
 	return ob
 
+def setup_materials():
+	mat = smaterial('RIGHT_EDGE', [0,0.5,1])
+	mat = smaterial('LEFT_EDGE', [1,0.5,0])
+	mat = smaterial('RIGHT', [0,0,1])
+	mat = smaterial('LEFT', [1,0,0])
+	mat = smaterial('JOIN', [0,1,0])
 
 if __name__ == '__main__':
 	args = []
 	kwargs = {}
 	blend = None
-	jfile = None
+	jfiles = []
 	clear_tiles = False
 	layers = []
 	layers_expand = 12
@@ -1998,7 +2078,7 @@ if __name__ == '__main__':
 			blend = arg
 		elif arg.endswith('.json'):
 			args.append(arg)
-			jfile = arg
+			jfiles.append(arg)
 		elif arg=='--print':
 			USE_PRINT = True
 			args.append(arg)
@@ -2033,6 +2113,12 @@ if __name__ == '__main__':
 		print(cmd)
 		subprocess.check_call(cmd)
 		sys.exit()
+
+	if jfiles:  ## load user defined shapes
+		for jfile in jfiles:
+			import_json( jfile )
+
+	setup_materials()
 
 	if 'Cube' in bpy.data.objects:
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
@@ -2369,8 +2455,6 @@ if __name__ == '__main__':
 							z = 10
 
 
-	elif jfile:
-		import_json( jfile )
 	elif '--print' in sys.argv:
 		RENDER_TEST = True
 		build_tiles(a=5, b=5, iterations=5)
@@ -2455,3 +2539,5 @@ if __name__ == '__main__':
 			for png in pngs:
 				ob = show_plot(png, x=-40, y=-1, z=z, scale=50)
 				z -= 42
+	if GLOBALS['trace-shape']:
+		shaper( bpy.data.worlds[0] )
