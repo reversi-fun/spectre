@@ -70,6 +70,8 @@ GLOBALS = {
 	'order-expand' : 0,
 	'trace' : False,
 	'trace-shape':False,
+	'trace-shape-smooth':1.0,
+	'trace-shape-smooth-iter':3,
 }
 
 if '--help' in sys.argv:
@@ -1263,19 +1265,21 @@ def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, s
 			copy.data= ob.data.copy()
 			bpy.context.scene.collection.objects.link(copy)
 			copy.select_set(False)
+			copy.show_wire=True
 			mod = copy.modifiers.new(name='smooth', type="SMOOTH")
 			mod.factor = smooth
 			mod.iterations = smooth_iterations
 			mod = copy.modifiers.new(name='wire', type="WIREFRAME")
-			mod.thickness=0.5
+			mod.thickness=0.15
 
-
-		mod = ob.modifiers.new(name='smooth', type="SMOOTH")
-		mod.factor = smooth
-		mod.iterations = smooth_iterations
-		bpy.ops.object.modifier_apply(modifier=mod.name)
+		if smooth:
+			mod = ob.modifiers.new(name='smooth', type="SMOOTH")
+			mod.factor = smooth
+			mod.iterations = smooth_iterations
+			bpy.ops.object.modifier_apply(modifier=mod.name)
 
 		bpy.ops.object.convert(target="CURVE")
+		ob.show_wire=True
 		ob.location.y -= 2
 		ob.data.extrude = 0.05
 		return ob
@@ -1423,6 +1427,8 @@ def mkshapes(shapes=5):
 
 
 def shaper( world ):
+	bpy.ops.object.select_all(action='DESELECT')
+
 	col = world.tile_active_collection
 	print('shaper:', col)
 
@@ -1460,6 +1466,12 @@ def shaper( world ):
 	print('right:', len(right))
 	print('left border:', len(left_bor))
 	print('right border:', len(right_bor))
+
+	if 'Camera' in bpy.data.objects:
+		cam = bpy.data.objects['Camera']
+		cam.location = [x,y-80,z]
+		cam.rotation_euler = [math.pi/2,0,0]
+		cam.data.clip_end = 2000
 
 	names = []
 	values = []
@@ -1502,7 +1514,8 @@ def shaper( world ):
 		colors=colors,
 		save=True
 	)
-	show_plot(png, x=ax-40, y=ay-2, z=az-10, scale=30)
+	X = ax + 25
+	show_plot(png, x=X, y=ay-2, z=az-5, scale=10)
 	la = {}
 	ra = {}
 	avgl = avgr = 0
@@ -1547,7 +1560,7 @@ def shaper( world ):
 		colors=colors,
 		save=True
 	)
-	show_plot(png, x=ax-40, y=ay-2, z=az+20, scale=30)
+	show_plot(png, x=X, y=ay-2, z=az+5, scale=10)
 
 
 
@@ -2119,6 +2132,8 @@ if __name__ == '__main__':
 			import_json( jfile )
 
 	setup_materials()
+	bpy.data.worlds[0].tile_trace_smooth = GLOBALS['trace-shape-smooth']
+	bpy.data.worlds[0].tile_trace_smooth_iter = GLOBALS['trace-shape-smooth-iter']
 
 	if 'Cube' in bpy.data.objects:
 		bpy.data.objects.remove( bpy.data.objects['Cube'] )
