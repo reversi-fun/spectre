@@ -52,4 +52,12 @@ new_shape:
 
 load_shape:
 	echo '{"left":[72],"right":[257],"left_bor":[269,73,79,80,86,270,268],"right_bor":[278,251,258,256,279,250],"joins":[]}' > /tmp/tmp.json
-	python3 spectre_tiles_blender.py --iterations=3 /tmp/tmp.json --trace-shape
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape
+
+load_shape_sharp:
+	echo '{"left":[72],"right":[257],"left_bor":[269,73,79,80,86,270,268],"right_bor":[278,251,258,256,279,250],"joins":[]}' > /tmp/tmp.json
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0
+
+load_shape_smooth:
+	echo '{"left":[72],"right":[257],"left_bor":[269,73,79,80,86,270,268],"right_bor":[278,251,258,256,279,250],"joins":[]}' > /tmp/tmp.json
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=10
