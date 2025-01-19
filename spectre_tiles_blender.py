@@ -977,11 +977,13 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 					obj.color = [1,0,0, 1]
 					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
 					obj.location.y -= 3
+					obj.show_wire=True
 				if obj.tile_index in shape['right']:
 					obj.tile_shape_right = True
 					obj.color = [0,0,1, 1]
 					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
 					obj.location.y -= 3
+					obj.show_wire=True
 				if obj.tile_index in shape['left_bor']:
 					obj.tile_shape_border_left = True
 					obj.color = [1,0.5,0, 1]
@@ -1510,10 +1512,10 @@ def shaper( world ):
 			for j in range(3): colors.append( [r,g,b,0.5] )
 			values += c + [sum(c)]
 			if len(csharp)==2:
-				ratio_names += ['left\ninner', 'left\nouter']
+				ratio_names += ['\nleft shape']#, 'left\nouter']
 				ratio_values.append( c[0] / csharp[0] )
-				ratio_values.append( c[1] / csharp[1] )
-				for j in range(2): ratio_colors.append( [r,g,b,1] )
+				#ratio_values.append( c[1] / csharp[1] )
+				for j in range(1): ratio_colors.append( [r,g,b,1] )
 
 
 	if len(right_bor) > 1:
@@ -1541,10 +1543,10 @@ def shaper( world ):
 			colors.append( [r,g,b,0.5] )
 			values += c + [sum(c)]
 			if len(csharp)==2:
-				ratio_names += ['right\ninner', 'right\nouter']
+				ratio_names += ['\nright shape']#, 'right\nouter']
 				ratio_values.append( c[0] / csharp[0] )
-				ratio_values.append( c[1] / csharp[1] )
-				for j in range(2): ratio_colors.append( [r,g,b,1] )
+				#ratio_values.append( c[1] / csharp[1] )
+				for j in range(1): ratio_colors.append( [r,g,b,1] )
 
 	print(names, values, colors)
 	png = ploter(
@@ -1602,12 +1604,20 @@ def shaper( world ):
 	)
 	show_plot(png, x=X, y=ay-2, z=az+5, scale=10)
 
-	ratio_names = [ ratio_names[0], ratio_names[2], ratio_names[1], ratio_names[3] ]
-	ratio_values = [ ratio_values[0], ratio_values[2], ratio_values[1], ratio_values[3] ]
-	ratio_colors = [ ratio_colors[0], ratio_colors[2], ratio_colors[1], ratio_colors[3] ]
+	title = 'left(%s) and right(%s) shape border curve ratios\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), round(world.tile_trace_smooth,2), world.tile_trace_smooth_iter)
+	if len(ratio_names)==4:
+		ratio_names = [ ratio_names[0], ratio_names[2], ratio_names[1], ratio_names[3] ]
+		ratio_values = [ ratio_values[0], ratio_values[2], ratio_values[1], ratio_values[3] ]
+		ratio_colors = [ ratio_colors[0], ratio_colors[2], ratio_colors[1], ratio_colors[3] ]
+	else:
+		#ratio_values.append( abs(ratio_values[0] - ratio_values[1] ) )
+		#ratio_names.append('\ndelta of\nleft and right')
+		#ratio_colors.append('green')
+		title += (' left/right delta=%s' % round(abs(ratio_values[0] - ratio_values[1]),4) )
+
 	png = ploter(
-		'left(%s) and right(%s) shape border curve ratios\n(ratio of smooth shape to base shape)\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), world.tile_trace_smooth, world.tile_trace_smooth_iter),
-		'ratio',
+		title,
+		'ratio of smooth shape to base shape',
 		ratio_names, ratio_values,
 		colors=ratio_colors,
 		save=True,
