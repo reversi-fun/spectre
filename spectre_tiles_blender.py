@@ -158,6 +158,13 @@ def smaterial(name, color):
 @functools.lru_cache
 def is_prime(n): return not any(n % i == 0 for i in range(2,n)) if n > 1 else False
 
+def new_collection(colname):
+	col = bpy.data.collections.new(colname)
+	bpy.context.scene.collection.children.link(col)
+	lcol = bpy.context.view_layer.layer_collection.children[col.name]
+	bpy.context.view_layer.active_layer_collection=lcol
+	return col
+
 TRACE = []
 ITER = 0
 def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=False, rotation=30 ):
@@ -184,6 +191,10 @@ def build_tiles( a=10, b=10, iterations=3, curve=False, lattice=False, gizmos=Fa
 
 	scn = bpy.data.scenes[0]
 	scn.render.engine = "BLENDER_WORKBENCH"
+
+	colname = 'iteration(%s)' % iterations
+	if colname not in bpy.data.collections:
+		new_collection(colname)
 
 	start = time()
 	spectreTiles = spectre.buildSpectreTiles(iterations,a,b, rotation=int(rotation))
@@ -1436,8 +1447,11 @@ def mkshapes(shapes=5):
 
 
 def shaper( world ):
-	bpy.ops.object.select_all(action='DESELECT')
+	colname = 'tracer'
+	if colname not in bpy.data.collections:
+		new_collection(colname)
 
+	bpy.ops.object.select_all(action='DESELECT')
 	col = world.tile_active_collection
 	print('shaper:', col)
 
@@ -1549,6 +1563,10 @@ def shaper( world ):
 				for j in range(1): ratio_colors.append( [r,g,b,1] )
 
 	print(names, values, colors)
+	colname = 'plots'
+	if colname not in bpy.data.collections:
+		new_collection(colname)
+
 	png = ploter(
 		'left(%s) and right(%s) shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), round(world.tile_trace_smooth,2), world.tile_trace_smooth_iter),
 		'length',
@@ -2057,6 +2075,7 @@ def interpolate_points(a, b):
 	return ret
 
 NUM_PLOTS = 0
+_ploter_lookup = {}
 def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, rotate_labels=0, bottom=0.15):
 	global NUM_PLOTS
 	fig, ax = plt.subplots()
@@ -2102,6 +2121,7 @@ def ploter(title, ylabel, names, values, overlays=None, colors=None, save=None, 
 			pad_inches=1,
 		)
 		plt.close(fig)
+		_ploter_lookup[save] = title
 		return save
 	else:
 		plt.show()
@@ -2113,6 +2133,8 @@ def show_plot(png, x=0, y=0, z=70, scale=40):
 	ob.rotation_euler.x = math.pi / 2
 	ob.scale *= scale
 	ob.location = [x,y,z]
+	if png in _ploter_lookup:
+		ob.name = _ploter_lookup[png]
 	return ob
 
 def setup_materials():
@@ -2233,6 +2255,9 @@ if __name__ == '__main__':
 	print('kwargs:', kwargs)
 	if layers:
 		print('matplotlib:', matplotlib)
+		colname = 'nurbs(%s)' % ','.join([str(l) for l in layers])
+		if colname not in bpy.data.collections:
+			new_collection(colname)
 
 		nurbs_trace = True
 		prime_trace = True
@@ -2381,16 +2406,27 @@ if __name__ == '__main__':
 							elif index in flips:
 								smat = smaterial('FLIP', [1,0,1])
 								nurb.data.materials.append(smat)
+								nurb.name = 'FLIP(%s)' % index
+							else:
+								nurb.name = 'MYSTIC(%s)' % index
 
 			prev_layer = o
 
 		if GLOBALS['trace']:
+			colname = 'order(%s)' % ','.join([str(l) for l in layers])
+			if colname not in bpy.data.collections:
+				new_collection(colname)
+
 			trace_cu = create_bezier_curve(trace, extrude=0.5, depth=0.5)
 			trace_cu.name = 'events'
 			trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
 
 		if matplotlib and GLOBALS['plot']:
+			colname = 'plots(%s)' % ','.join([str(l) for l in layers])
+			if colname not in bpy.data.collections:
+				new_collection(colname)
+
 			rot = o['rotation']
 			png = ploter(
 				'number of primes for each iteration\nrotation=%s' %(rot),
@@ -2480,7 +2516,7 @@ if __name__ == '__main__':
 					bpy.ops.object.empty_add()
 					parent = bpy.context.active_object
 					parent.parent = o['gpencil']
-					parent.name = 'plots'
+					parent.name = 'plots(%s)' % layers[oidx]
 					parent.location.x = -20 * oidx
 					parent.location.x -= 10
 					if oidx >= 4:
@@ -2543,6 +2579,10 @@ if __name__ == '__main__':
 		o = build_tiles(**kwargs)
 		bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
+			colname = 'plots(%s)' % kwargs['iterations']
+			if colname not in bpy.data.collections:
+				new_collection(colname)
+
 			pngs = []
 			rot = 30  ## default rotation
 			if 'rotation' in kwargs:
