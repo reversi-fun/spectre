@@ -72,6 +72,7 @@ GLOBALS = {
 	'trace-shape':False,
 	'trace-shape-smooth':1.0,
 	'trace-shape-smooth-iter':3,
+	'color-fade' : True,
 }
 
 if '--help' in sys.argv:
@@ -703,8 +704,9 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 	vertices = (spectre.SPECTRE_POINTS if label != "Gamma2" else spectre.Mystic_SPECTRE_POINTS).dot(tile_transformation[:,:2].T) + tile_transformation[:,2]
 	try:
 		color_array = spectre.get_color_array(tile_transformation, label)
-		color_array *= 0.5
-		color_array += 0.5
+		if GLOBALS['color-fade']:
+			color_array *= 0.5
+			color_array += 0.5
 	except KeyError:
 		color_array = [0,0.5,0.5]
 
@@ -974,10 +976,12 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 					obj.tile_shape_left = True
 					obj.color = [1,0,0, 1]
 					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+					obj.location.y -= 3
 				if obj.tile_index in shape['right']:
 					obj.tile_shape_right = True
 					obj.color = [0,0,1, 1]
 					obj.tile_collection = bpy.data.collections['shape(%s)' % sidx]
+					obj.location.y -= 3
 				if obj.tile_index in shape['left_bor']:
 					obj.tile_shape_border_left = True
 					obj.color = [1,0.5,0, 1]
@@ -1208,7 +1212,7 @@ def create_mesh_tile(o, scale=0.1):
 	bpy.context.collection.objects.link(obj)
 	return obj
 
-def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, smooth_iterations=3 ):
+def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, smooth_iterations=3, wireframe=0.8, show_in_front=False ):
 	print('trace_tiles:', tiles)
 	bpy.ops.object.select_all(action='DESELECT')
 	tmp = []
@@ -1270,7 +1274,9 @@ def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, s
 			mod.factor = smooth
 			mod.iterations = smooth_iterations
 			mod = copy.modifiers.new(name='wire', type="WIREFRAME")
-			mod.thickness=0.15
+			mod.thickness=wireframe
+			copy.location.y -= 2.5
+			copy.show_in_front = show_in_front
 
 		if smooth:
 			mod = ob.modifiers.new(name='smooth', type="SMOOTH")
@@ -1282,6 +1288,7 @@ def trace_tiles( tiles, space_tiles=None, inner=False, debug=True, smooth=1.0, s
 		ob.show_wire=True
 		ob.location.y -= 2
 		ob.data.extrude = 0.05
+		ob.show_in_front = show_in_front
 		return ob
 
 	ob.location.y = -1# + random()
@@ -1473,10 +1480,24 @@ def shaper( world ):
 		cam.rotation_euler = [math.pi/2,0,0]
 		cam.data.clip_end = 2000
 
+	ratio_names  = []
+	ratio_values = []
+	ratio_colors = []
 	names = []
 	values = []
 	colors = []
 	if len(left_bor) > 1:
+		cu = trace_tiles(
+			left_bor, 
+			smooth=0, 
+			smooth_iterations=0,
+			wireframe=0.15,
+			show_in_front=True,
+		)
+		c = calc_curve_lengths(cu)
+		csharp = calc_curve_lengths(cu)
+
+
 		cu = trace_tiles(
 			left_bor, 
 			smooth=world.tile_trace_smooth, 
@@ -1486,12 +1507,26 @@ def shaper( world ):
 		if len(c) == 2:
 			names += ['left\ninner', 'left\nouter', 'left\ntotal']
 			r,g,b,_ = bpy.data.materials['LEFT_EDGE'].diffuse_color
-			colors.append( [r,g,b,0.5] )
-			colors.append( [r,g,b,0.5] )
-			colors.append( [r,g,b,0.5] )
+			for j in range(3): colors.append( [r,g,b,0.5] )
 			values += c + [sum(c)]
+			if len(csharp)==2:
+				ratio_names += ['left\ninner', 'left\nouter']
+				ratio_values.append( c[0] / csharp[0] )
+				ratio_values.append( c[1] / csharp[1] )
+				for j in range(2): ratio_colors.append( [r,g,b,1] )
+
 
 	if len(right_bor) > 1:
+		cu = trace_tiles(
+			right_bor, 
+			smooth=0, 
+			smooth_iterations=0,
+			wireframe=0.15,
+			show_in_front=True,
+		)
+		c = calc_curve_lengths(cu)
+		csharp = calc_curve_lengths(cu)
+
 		cu = trace_tiles(
 			right_bor,
 			smooth=world.tile_trace_smooth, 
@@ -1505,10 +1540,15 @@ def shaper( world ):
 			colors.append( [r,g,b,0.5] )
 			colors.append( [r,g,b,0.5] )
 			values += c + [sum(c)]
+			if len(csharp)==2:
+				ratio_names += ['right\ninner', 'right\nouter']
+				ratio_values.append( c[0] / csharp[0] )
+				ratio_values.append( c[1] / csharp[1] )
+				for j in range(2): ratio_colors.append( [r,g,b,1] )
 
 	print(names, values, colors)
 	png = ploter(
-		'left(%s) and right(%s) shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), world.tile_trace_smooth, world.tile_trace_smooth_iter),
+		'left(%s) and right(%s) shape border tiles curve lengths\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), round(world.tile_trace_smooth,2), world.tile_trace_smooth_iter),
 		'length',
 		names, values,
 		colors=colors,
@@ -1562,6 +1602,18 @@ def shaper( world ):
 	)
 	show_plot(png, x=X, y=ay-2, z=az+5, scale=10)
 
+	ratio_names = [ ratio_names[0], ratio_names[2], ratio_names[1], ratio_names[3] ]
+	ratio_values = [ ratio_values[0], ratio_values[2], ratio_values[1], ratio_values[3] ]
+	ratio_colors = [ ratio_colors[0], ratio_colors[2], ratio_colors[1], ratio_colors[3] ]
+	png = ploter(
+		'left(%s) and right(%s) shape border curve ratios\n(ratio of smooth shape to base shape)\nsmoothing=%s smoothing_iterations=%s' %(len(left_bor), len(right_bor), world.tile_trace_smooth, world.tile_trace_smooth_iter),
+		'ratio',
+		ratio_names, ratio_values,
+		colors=ratio_colors,
+		save=True,
+		bottom=0.1,
+	)
+	show_plot(png, x=ax-1, y=ay-2, z=az+3, scale=30)
 
 
 def calc_curve_lengths(ob):
