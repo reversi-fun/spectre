@@ -52,12 +52,19 @@ new_shape:
 
 echo_shape0:
 	echo '{"left":[72],"right":[257],"left_bor":[269,73,79,80,86,270,268],"right_bor":[278,251,258,256,279,250],"joins":[]}' > /tmp/tmp.json
+echo_shape1:
+	echo '{"left": [73, 72], "right": [257, 279], "left_bor": [269, 79, 80, 75, 86, 74, 270, 268, 76], "right_bor": [278, 251, 230, 284, 258, 256, 229, 280, 250], "joins": []}' > /tmp/tmp.json
 
 load_shape: echo_shape0
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --color-fade=0
 
 load_shape: echo_shape0
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --color-fade=0
+load_shape_sharp: echo_shape0
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0 --trace-shape-smooth-iter=0 --color-fade=0
+load_shape_smooth: echo_shape0
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=10 --color-fade=0
+
 
 load_shape_smooth_1: echo_shape0
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.1 --trace-shape-smooth-iter=5 --color-fade=0
@@ -72,8 +79,18 @@ load_shape_smooth_8: echo_shape0
 load_shape_smooth_10: echo_shape0
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=5 --color-fade=0
 
-load_shape_sharp: echo_shape0
+load_shape1_smooth_0: echo_shape1
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0 --trace-shape-smooth-iter=0 --color-fade=0
+load_shape1_smooth_1: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.1 --trace-shape-smooth-iter=5 --color-fade=0
+load_shape1_smooth_2: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.2 --trace-shape-smooth-iter=5 --color-fade=0
+load_shape1_smooth_4: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.4 --trace-shape-smooth-iter=5 --color-fade=0
+load_shape1_smooth_6: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.6 --trace-shape-smooth-iter=5 --color-fade=0
+load_shape1_smooth_8: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=0.8 --trace-shape-smooth-iter=5 --color-fade=0
+load_shape1_smooth_10: echo_shape1
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=5 --color-fade=0
 
-load_shape_smooth: echo_shape0
-	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=10 --color-fade=0
