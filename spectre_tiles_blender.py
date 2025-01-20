@@ -668,7 +668,6 @@ def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02, material=N
 	curve_obj.data.bevel_depth=depth
 	if material:
 		curve_obj.data.materials.append(material)
-		curve_obj.show_wire = True
 	return curve_obj
 
 
@@ -1028,195 +1027,6 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 		#TRACE.append([obj, ob, rot, scl, tile_transformation])
 
-def import_json_broken( jfile, scale=0.1, show_num=False, gpencil_cyclic=False, grow_patches=False, gizmos=False ):
-	import json
-	print('loading:',jfile)
-	dump = json.loads(open(jfile).read())
-	print('tiles:', len(dump['tiles']))
-
-	if len(dump['tiles']):
-		bpy.ops.object.gpencil_add(type="EMPTY")
-		gpencil = bpy.context.active_object
-		gpencil.data.layers[0].info = 'notes'
-		mod = gpencil.grease_pencil_modifiers.new(name='subdiv', type="GP_SUBDIV")
-		mod.level = 2
-		mod = gpencil.grease_pencil_modifiers.new(name='subdiv', type="GP_SMOOTH")
-		mod.factor=1.0
-
-	for o in dump['tiles']:
-		trans = spectre.trot( o['angle'] )
-		trans[0][-1] = o['x']
-		trans[1][-1] = o['y']
-		if 'mystic' in o:
-			vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
-		else:
-			vertices = (spectre.SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
-
-		verts = []
-		for v in vertices:
-			x,y = v
-			verts.append([x,0,y])
-
-		line_width = 100
-		label = o['name'].split('(')[0]
-		if label not in gpencil.data.layers:
-			layer = gpencil.data.layers.new(label)
-			frame = layer.frames.new(1)
-		frame = gpencil.data.layers[label].frames[0]
-		stroke = frame.strokes.new()
-		stroke.points.add(count=len(verts))
-		stroke.line_width = line_width
-		stroke.use_cyclic = gpencil_cyclic
-		ax = ay = az = 0.0
-		for i,v in enumerate(verts):
-			x,y,z = v
-			stroke.points[i].co.x = x * scale
-			stroke.points[i].co.y = y * scale
-			stroke.points[i].co.z = z * scale
-			ax += x
-			az += z
-		ax /= len(verts)
-		az /= len(verts)
-		if show_num:
-			frame = gpencil.data.layers['notes'].frames[0]
-			X = 0
-			info = str(o['index'])
-			if 'mystic' in o:  ## this is when iterations is odd
-				info = '★' + info
-			for char in info:
-				assert char in grease_font
-				arr = grease_font[char]
-				stroke = frame.strokes.new()
-				stroke.points.add(count=len(arr))
-				stroke.line_width = 30
-				for i,v in enumerate(arr):
-					x,y = v
-					x*=2
-					y*=2
-					stroke.points[i].co.x = (x+ax+X) * scale
-					stroke.points[i].co.z = (y+az) * scale
-				X += 2.0
-
-
-	for shape_name in dump['shapes']:
-		print('SHAPE:', shape_name)
-		tiles = {}
-		bpy.ops.object.empty_add(type="SINGLE_ARROW")
-		root = bpy.context.active_object
-		root.name='SHAPE:%s' % shape_name
-
-		for o in dump['shapes'][shape_name]:
-			#print('	TILE:', o['name'])
-			trans = spectre.trot( o['angle'] )
-			trans[0][-1] = o['x']
-			trans[1][-1] = o['y']
-			if 'mystic' in o:
-				vertices = (spectre.Mystic_SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
-			else:
-				vertices = (spectre.SPECTRE_POINTS).dot(trans[:,:2].T) + trans[:,2]
-
-			verts = []
-			for v in vertices:
-				x,y = v
-				verts.append([x*scale,0,y*scale])
-
-			faces = [
-				list(range(len(verts)))
-			]
-
-			mesh = bpy.data.meshes.new(o['name'])
-			mesh.from_pydata(verts, [], faces)
-			mesh.materials.append(smaterial(o['color'], o['color']))
-			obj = bpy.data.objects.new(o['name'], mesh)
-			bpy.context.collection.objects.link(obj)
-			tiles[ obj ] = o
-			obj.show_wire=True
-			obj.tile_index = o['index']
-			obj.tile_angle = o['angle']
-			obj.tile_x = o['x']
-			obj.tile_y = o['y']
-			if 'border' in o:
-				if o['border']=='left':
-					obj.tile_shape_border_left=True
-				elif o['border']=='right':
-					obj.tile_shape_border_right=True
-			if 'mystic' in o:
-				obj.tile_mystic=True
-			if 'type' in o:
-				if o['type']=='left':
-					obj.tile_shape_left=True
-				elif o['type']=='right':
-					obj.tile_shape_right=True
-			if 'join' in o:
-				obj.tile_shape_join=True
-
-			bpy.context.view_layer.objects.active = obj
-			obj.select_set(True)
-			bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_MASS")
-
-			if gizmos:
-				bpy.ops.object.empty_add(type="ARROWS")
-				ob = bpy.context.active_object
-				ob.parent = obj
-				ob.rotation_euler.y = math.radians(o['angle'])
-
-			obj.parent=root
-
-		curves = []
-		left = []
-		left_bor = []
-		right = []
-		right_bor = []
-		for tile in tiles:
-			if tile.tile_shape_border_left:
-				left_bor.append(tile)
-			elif tile.tile_shape_border_right:
-				right_bor.append(tile)
-
-			if 'pair' in tiles[tile]:
-				pname = tiles[tile]['pair']
-				if pname in bpy.data.objects:
-					b = bpy.data.objects[pname]
-					tile.tile_pair = b
-					if gizmos:
-						cu,points = pairs_to_curve( [tile, tile.tile_pair] )
-						cu.parent = root
-						curves.append(cu)
-					if tile.tile_shape_left:
-						left.append( tile )
-					elif tile.tile_shape_right:
-						right.append( tile )
-					if b.tile_shape_left:
-						left.append( b )
-					elif b.tile_shape_right:
-						right.append( b )
-				else:
-					print("WARN: missing tile pair:", pname)
-
-		if len(curves) >= 2:
-			mat = tile.data.materials[0]
-			nurb = create_nurbs([curves[0]]+curves+[curves[-1]], material=mat)
-			nurb.parent=root
-
-		if grow_patches:
-			if len(left):
-				trace_tiles(left, dump['tiles'])
-			if len(right):
-				trace_tiles(right, dump['tiles'])
-
-		if len(left_bor) > 1:
-			cu = trace_tiles(left_bor)
-
-			#cu = trace_tiles(left_bor+left)
-			#cu.data.offset = -0.1
-			#if cu.type=='CURVE':
-			#	cu.data.extrude = 0.5
-			#	cu.location.y = 0.1
-		if len(right_bor) > 1:
-			cu = trace_tiles(right_bor)
-			#cu.data.offset = -0.1
-			#cu.data.extrude = 0.5
-			#cu.location.y = 0.1
 
 def create_mesh_tile(o, scale=0.1):
 	trans = spectre.trot( o['angle'] )
@@ -2033,55 +1843,6 @@ def export_json(world):
 	open(tmp, 'wb').write(dump.encode('utf-8'))
 
 
-def export_json_broken(world):
-	import json
-	tiles = []
-	shapes = {}
-	for ob in bpy.data.objects:
-		if not ob.tile_index: continue
-		r,g,b,a = ob.data.materials[0].diffuse_color
-		o = {
-			'name':ob.name,
-			'index':ob.tile_index,
-			'x':ob.tile_x,
-			'y':ob.tile_y,
-			'angle':ob.tile_angle,
-			'color':[r,g,b],
-		}
-		if ob.tile_mystic:
-			o['mystic']=1
-		if ob.tile_shape_border_left:
-			o['border']='left'
-		if ob.tile_shape_border_right:
-			o['border']='right'
-		if ob.tile_shape_left:
-			o['type']='left'
-		if ob.tile_shape_right:
-			o['type']='right'
-		if ob.tile_shape_join:
-			o['join']=1
-		if ob.tile_pair:
-			o['pair']=ob.tile_pair.name
-
-		if ob.tile_collection:
-			if ob.tile_collection.name not in shapes:
-				shapes[ob.tile_collection.name] = []
-			shapes[ob.tile_collection.name].append(o)
-		elif ob.select_get():
-			tiles.append( o )
-
-	if world.tile_export_path.strip():
-		tmp = world.tile_export_path.strip()
-		if tmp.startswith('~'): tmp = os.path.expanduser(tmp)
-		if not tmp.endswith('.json'): tmp += '.json'
-	else:
-		tmp = '/tmp/spectre.json'
-	dump = json.dumps( {'shapes':shapes, 'tiles':tiles} )
-	#print(dump)
-	print('saving:', tmp)
-	open(tmp, 'wb').write(dump.encode('utf-8'))
-
-
 def interpolate_points(a, b):
 	ret = []
 	for i, v in enumerate(a):
@@ -2244,6 +2005,7 @@ if __name__ == '__main__':
 		if area.type == 'VIEW_3D':
 			area.spaces[0].overlay.show_relationship_lines = False
 			area.spaces[0].overlay.show_floor = False
+			area.spaces[0].shading.color_type = 'TEXTURE'
 			area.spaces[0].shading.background_type = 'VIEWPORT'
 			white = 0.8
 			area.spaces[0].shading.background_color = [white]*3
@@ -2310,6 +2072,7 @@ if __name__ == '__main__':
 		spectre_layers = []
 
 		trace = []
+		trace_colors = []
 		Z = 0.0
 		for i in layers:
 			kwargs['iterations']=i
@@ -2318,6 +2081,7 @@ if __name__ == '__main__':
 			o = build_tiles(**kwargs)
 			for minfo in o['trace']:
 				trace.append( [minfo['x'],Z, minfo['y'], math.radians(minfo['rot']) ] )
+				trace_colors.append(minfo['color'])
 				Z -= 0.1
 			spectre_layers.append(o)
 			layer_names.append('iteration:%s\ntiles:%s\nmystics:%s' % (i, o['num_tiles'], len(o['mystics'])))
@@ -2435,7 +2199,7 @@ if __name__ == '__main__':
 			if colname not in bpy.data.collections:
 				new_collection(colname)
 
-			trace_cu = create_bezier_curve(trace, extrude=0.5, depth=0.5)
+			trace_cu = create_color_curve(trace, trace_colors, extrude=0.5, depth=0.5)
 			trace_cu.name = 'events'
 			trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
