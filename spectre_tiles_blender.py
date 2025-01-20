@@ -628,6 +628,21 @@ CAM_COORDS = [
 
 ]
 
+## https://blender.stackexchange.com/questions/28121/how-to-colour-vertices-of-a-beveled-curve-mesh-without-converting-to-mesh
+def create_color_curve(points, colors, extrude=0.08, depth=0.02):
+	import numpy as np
+	img = bpy.data.images.new("ColorStrip", width=len(colors), height=1)
+	arr = np.array(colors)
+	img.pixels = arr.flatten()
+	mat = bpy.data.materials.new('point-colors')
+	mat.use_nodes=True 
+	material_output = mat.node_tree.nodes.get('Material Output')
+	principled_BSDF = mat.node_tree.nodes.get('Principled BSDF')
+	tex_node = mat.node_tree.nodes.new('ShaderNodeTexImage')
+	tex_node.image = img
+	mat.node_tree.links.new(tex_node.outputs[0], principled_BSDF.inputs[0])
+	return create_bezier_curve(points, colors, extrude=extrude, depth=depth, material=mat)
+
 def create_bezier_curve(points, radius=1.0, extrude=0.08, depth=0.02, material=None):
 	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
 	curve_data.dimensions = '3D'
@@ -750,11 +765,13 @@ def plotVertices(tile_transformation, label, scale=1.0, gizmos=False, center=Tru
 
 	prime = None
 
+	r,g,b = color_array
 	minfo = {
 		'index':num_tiles, 
 		'rot':rot, 'x':ax, 'y':ay,
 		'verts': verts,
 		'label': label,
+		'color' : (r,g,b,1.0),
 	}
 	if info:
 		if label not in info['labels']:
@@ -2581,10 +2598,12 @@ if __name__ == '__main__':
 
 		if GLOBALS['trace']:
 			trace = []
+			trace_colors = []
 			Z = 0
 			prot = None
 			for minfo in o['trace']:
 				trace.append( [minfo['x'],Z, minfo['y'], math.radians(minfo['rot']) ] )
+				trace_colors.append( minfo['color'] )
 				if GLOBALS['knot']:
 					Z += minfo['rot'] * 0.001
 					if prot is None or abs(minfo['rot'] - prot) > 90:
@@ -2600,7 +2619,7 @@ if __name__ == '__main__':
 			if colname not in bpy.data.collections:
 				new_collection(colname)
 
-			trace_cu = create_bezier_curve(trace, extrude=0, depth=0.5)
+			trace_cu = create_color_curve(trace, trace_colors, extrude=0, depth=0.5)
 			trace_cu.name = 'events'
 			#trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
