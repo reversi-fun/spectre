@@ -73,6 +73,7 @@ GLOBALS = {
 	'trace-shape-smooth':1.0,
 	'trace-shape-smooth-iter':3,
 	'color-fade' : True,
+	'knot' : False,
 }
 
 if '--help' in sys.argv:
@@ -2577,7 +2578,34 @@ if __name__ == '__main__':
 		tmp = '/tmp/spectre.%s.blend' % kwargs['iterations']
 		#if not os.path.isfile(tmp):
 		o = build_tiles(**kwargs)
-		bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
+
+		if GLOBALS['trace']:
+			trace = []
+			Z = 0
+			prot = None
+			for minfo in o['trace']:
+				trace.append( [minfo['x'],Z, minfo['y'], math.radians(minfo['rot']) ] )
+				if GLOBALS['knot']:
+					Z += minfo['rot'] * 0.001
+					if prot is None or abs(minfo['rot'] - prot) > 90:
+						Z += 0.1
+						#Z += abs(minfo['rot']) * 0.01
+					else:
+						Z -= 0.1
+				else:
+					Z -= 0.1
+				prot = minfo['rot']
+
+			colname = 'order(%s)' % ','.join([str(l) for l in layers])
+			if colname not in bpy.data.collections:
+				new_collection(colname)
+
+			trace_cu = create_bezier_curve(trace, extrude=0, depth=0.5)
+			trace_cu.name = 'events'
+			#trace_cu.location.x = 100
+			trace_cu.scale.y = 3.3
+
+		#bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
 			colname = 'plots(%s)' % kwargs['iterations']
 			if colname not in bpy.data.collections:
