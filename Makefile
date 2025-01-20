@@ -18,9 +18,16 @@ odd:
 even:
 	python3 spectre_tiles_blender.py --iterations=2,4 --plot --plot-labels --gpencil --num-mystic --rotation=30 --layer-expand=30 --trace
 
+level1_knot:
+	python3 spectre_tiles_blender.py --iterations=1 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot --trace --knot
+level2_knot:
+	python3 spectre_tiles_blender.py --iterations=2 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot --trace --knot
+level3_knot:
+	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot --trace --knot
 
 level1:
 	python3 spectre_tiles_blender.py --iterations=1 --gpencil --gpen-fills=0 --num-mystic --rotation=30 --plot
+
 level1_90:
 	python3 spectre_tiles_blender.py --iterations=1 --gpencil --gpen-fills=0 --num-mystic --rotation=90 --plot
 
