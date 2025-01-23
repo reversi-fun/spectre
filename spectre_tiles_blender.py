@@ -1943,6 +1943,22 @@ def setup_materials():
 	mat = smaterial('LEFT', [1,0,0])
 	mat = smaterial('JOIN', [0,1,0])
 
+def find_curve_knots( cu ):
+	assert len(cu.data.splines)==1
+	points = []
+	for pnt in cu.data.splines[0].bezier_points:
+		x,y,z = pnt.handle_left
+		points.append([x,y,z])
+		x,y,z = pnt.co
+		points.append([x,y,z])
+		x,y,z = pnt.handle_right
+		points.append([x,y,z])
+
+	info = knotoid.calc_knotoid( points )
+	print('knotoid:')
+	print(info)
+
+
 if __name__ == '__main__':
 	args = []
 	kwargs = {}
@@ -2383,9 +2399,11 @@ if __name__ == '__main__':
 		if GLOBALS['trace']:
 			trace = []
 			trace_colors = []
+			ktrace = []
 			Z = 0
 			prot = None
 			for minfo in o['trace']:
+				ktrace.append([minfo['x'],Z, minfo['y']])
 				trace.append( [minfo['x'],Z, minfo['y'], math.radians(minfo['rot']) ] )
 				trace_colors.append( minfo['color'] )
 				if GLOBALS['knot']:
@@ -2407,6 +2425,11 @@ if __name__ == '__main__':
 			trace_cu.name = 'events'
 			#trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
+
+			if knotoid:
+				#knots = knotoid.calc_knotoid( ktrace )
+				knots = find_curve_knots( trace_cu )
+				print(knots)
 
 		#bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
