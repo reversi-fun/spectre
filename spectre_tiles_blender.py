@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys
+import os, sys, subprocess
 __doc__ = '''
 
 COMMAND:
@@ -28,12 +28,27 @@ OPTIONS:
 _thisdir = os.path.split(os.path.abspath(__file__))[0]
 if _thisdir not in sys.path: sys.path.insert(0,_thisdir)
 
+knotoid = None
+def try_install_knotoid():
+	global knotoid
+	path = os.path.join(_thisdir, 'Knoto-ID')
+	if not os.path.isdir(path):
+		cmd = ['git', 'clone', '--depth', '1', 'https://github.com/brentharts/Knoto-ID.git']
+		print(cmd)
+		subprocess.check_call(cmd)
+	sys.path.append(path)
+	import knotoid
+
 if sys.platform == 'win32':
 	BLENDER = 'C:/Program Files/Blender Foundation/Blender 4.2/blender.exe'
 	if not os.path.isfile(BLENDER):
 		BLENDER = 'C:/Program Files/Blender Foundation/Blender 3.6/blender.exe'
 elif sys.platform == 'darwin':
 	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
+	try:
+		try_install_knotoid()
+	except:
+		print('unable to install knotoid')
 else:
 	BLENDER = 'blender'
 	if '--blender-test' in sys.argv:
@@ -43,7 +58,12 @@ else:
 			BLENDER = os.path.expanduser('~/Downloads/blender-3.6.1-linux-x64/blender')
 		elif os.path.isfile(os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')):
 			BLENDER = os.path.expanduser('~/Downloads/blender-4.2.1-linux-x64/blender')
+	try:
+		try_install_knotoid()
+	except:
+		print('unable to install knotoid')
 
+print('knotoid', knotoid)
 AUTO_SHAPES = False
 SHAPE_TEST = False
 RENDER_TEST = False
