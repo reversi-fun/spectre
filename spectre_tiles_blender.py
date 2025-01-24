@@ -1987,6 +1987,23 @@ def find_curve_knots( cu ):
 	print('knotoid:')
 	print(info)
 
+def calc_gauss_code( cu ):
+	assert len(cu.data.splines)==1
+	points = []
+	for pnt in cu.data.splines[0].bezier_points:
+		x,y,z = pnt.handle_left
+		points.append([x,y,z])
+		x,y,z = pnt.co
+		points.append([x,y,z])
+		x,y,z = pnt.handle_right
+		points.append([x,y,z])
+
+	k = knotid.sp.SpaceCurve( points )
+	print(k)
+	g = k.gauss_code(recalculate=True, try_cython=False)
+	print('guass code:', g)
+	return g
+
 
 if __name__ == '__main__':
 	args = []
@@ -2459,6 +2476,8 @@ if __name__ == '__main__':
 				#knots = knotoid.calc_knotoid( ktrace )
 				knots = find_curve_knots( trace_cu )
 				print(knots)
+			if knotid:
+				gauss = calc_gauss_code( trace_cu )
 
 		#bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
