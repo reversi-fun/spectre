@@ -39,16 +39,37 @@ def try_install_knotoid():
 	sys.path.append(path)
 	import knotoid
 
+knotid = None
+def try_install_knotid():
+	global knotid
+	path = os.path.join(_thisdir, 'pyknotid')
+	if not os.path.isdir(path):
+		cmd = ['git', 'clone', '--depth', '1', 'https://github.com/brentharts/pyknotid.git']
+		print(cmd)
+		subprocess.check_call(cmd)
+	sys.path.append(path)
+	import knotid
+
 if sys.platform == 'win32':
 	BLENDER = 'C:/Program Files/Blender Foundation/Blender 4.2/blender.exe'
 	if not os.path.isfile(BLENDER):
 		BLENDER = 'C:/Program Files/Blender Foundation/Blender 3.6/blender.exe'
+	try:
+		try_install_knotid()
+	except:
+		print('unable to install knotid')
+
 elif sys.platform == 'darwin':
 	BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
 	try:
 		try_install_knotoid()
 	except:
 		print('unable to install knotoid')
+	try:
+		try_install_knotid()
+	except:
+		print('unable to install knotid')
+
 else:
 	BLENDER = 'blender'
 	if '--blender-test' in sys.argv:
@@ -63,7 +84,15 @@ else:
 	except:
 		print('unable to install knotoid')
 
+	try:
+		try_install_knotid()
+	except:
+		print('unable to install knotid')
+
+
 print('knotoid', knotoid)
+print('knotid', knotid)
+
 AUTO_SHAPES = False
 SHAPE_TEST = False
 RENDER_TEST = False
