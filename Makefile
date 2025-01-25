@@ -101,3 +101,5 @@ load_shape1_smooth_8: echo_shape1
 load_shape1_smooth_10: echo_shape1
 	python3 spectre_tiles_blender.py --iterations=3 --gpencil --gpen-fills=0 /tmp/tmp.json --trace-shape --trace-shape-smooth=1 --trace-shape-smooth-iter=5 --color-fade=0
 
+trefoil:
+	python3 spectre_tiles_blender.py --trefoil
