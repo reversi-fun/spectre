@@ -123,6 +123,7 @@ GLOBALS = {
 	'trace-shape-smooth-iter':3,
 	'color-fade' : True,
 	'knot' : False,
+	'trefoil' : False,
 }
 
 if '--help' in sys.argv:
@@ -1972,7 +1973,7 @@ def setup_materials():
 	mat = smaterial('LEFT', [1,0,0])
 	mat = smaterial('JOIN', [0,1,0])
 
-def find_curve_knots( cu ):
+def find_curve_knots( cu, **kw ):
 	assert len(cu.data.splines)==1
 	points = []
 	for pnt in cu.data.splines[0].bezier_points:
@@ -1983,7 +1984,7 @@ def find_curve_knots( cu ):
 		x,y,z = pnt.handle_right
 		points.append([x,y,z])
 
-	info = knotoid.calc_knotoid( points )
+	info = knotoid.calc_knotoid( points, **kw )
 	print('knotoid:')
 	print(info)
 
@@ -2003,6 +2004,14 @@ def calc_gauss_code( cu ):
 	g = k.gauss_code(recalculate=True, try_cython=False)
 	print('guass code:', g)
 	return g
+
+def test_trefoil():
+	k = knotid.mk.trefoil()
+	#for p in k.points:
+	#	print(p)
+	cu = create_bezier_curve(k.points)
+	find_curve_knots(cu, cyclic=True)
+
 
 
 if __name__ == '__main__':
@@ -2560,3 +2569,5 @@ if __name__ == '__main__':
 				z -= 42
 	if GLOBALS['trace-shape']:
 		shaper( bpy.data.worlds[0] )
+	if GLOBALS['trefoil']:
+		test_trefoil()
