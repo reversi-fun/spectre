@@ -124,6 +124,7 @@ GLOBALS = {
 	'color-fade' : True,
 	'knot' : False,
 	'trefoil' : False,
+	'overhand-knot' : False,
 }
 
 if '--help' in sys.argv:
@@ -1983,10 +1984,15 @@ def find_curve_knots( cu, **kw ):
 		points.append([x,y,z])
 		x,y,z = pnt.handle_right
 		points.append([x,y,z])
+	return knotoid.calc_knotoid( points, **kw )
 
-	info = knotoid.calc_knotoid( points, **kw )
-	print('knotoid:')
-	print(info)
+def find_linear_curve_knots( cu, **kw ):
+	assert len(cu.data.splines)==1
+	points = []
+	for pnt in cu.data.splines[0].points:
+		x,y,z,w = pnt.co
+		points.append([x,y,z])
+	return knotoid.calc_knotoid( points, **kw )
 
 def calc_gauss_code( cu ):
 	assert len(cu.data.splines)==1
@@ -2005,14 +2011,139 @@ def calc_gauss_code( cu ):
 	print('guass code:', g)
 	return g
 
-def test_trefoil():
+def test_trefoil_slow():
 	k = knotid.mk.trefoil()
-	#for p in k.points:
-	#	print(p)
 	cu = create_bezier_curve(k.points)
 	find_curve_knots(cu, cyclic=True)
 
+def test_trefoil():
+	points = knotoid.trefoil()
+	#cu = create_bezier_curve(points)
+	cu = create_linear_curve(points)
+	info = knotoid.calc_knotoid( points, cyclic=True )
+	print('knotoid:')
+	for a in info:
+		if a['valid']:
+			print(a)
+			b = cu.data.splines[0].points[ a['index_first'] ]
+			c = cu.data.splines[0].points[ a['index_last'] ]
+			#b = cu.data.splines[0].bezier_points[ a['index_first'] ]
+			#c = cu.data.splines[0].bezier_points[ a['index_last'] ]
+			print('index_first:', b)
+			print('index_last:', c)
+			bpy.ops.object.empty_add()
+			ob = bpy.context.active_object
+			ob.location.x = b.co.x
+			ob.location.y = b.co.y
+			ob.location.z = b.co.z
+			ob.name = 'start:%s' % a['polynomial']
+			ob.empty_display_type = 'SINGLE_ARROW'
+			ob.empty_display_size = 0.8
 
+			bpy.ops.object.empty_add()
+			o = bpy.context.active_object
+			o.location.x = c.co.x
+			o.location.y = c.co.y
+			o.location.z = c.co.z
+			o.name = 'end:%s' % a['polynomial']
+			o.empty_display_size = 0.1
+			point_and_stretch(ob, o)
+
+def point_and_stretch(obj1, obj2):
+	# Calculate the vector from obj1 to obj2
+	vec = obj2.location - obj1.location
+	# Calculate the distance between the objects
+	distance = vec.length
+	# Calculate the initial Z scale of obj1
+	initial_z_scale = obj1.scale.z
+	# Calculate the desired Z scale for obj1 to touch obj2
+	desired_z_scale = initial_z_scale + distance
+	# Set the Z scale of obj1
+	obj1.scale.z = desired_z_scale
+	# Point obj1 towards obj2
+	look_at_constraint = obj1.constraints.new(type='TRACK_TO')
+	look_at_constraint.target = obj2
+	look_at_constraint.track_axis = 'TRACK_Z'
+	look_at_constraint.up_axis = 'UP_Y' 
+
+
+def create_overhand_knot_curve():
+	points = [[[-4.88, -0.05, 1.43], [-4.18, 0.0, 1.45], [-2.93, 0.09, 1.48]], [[-1.7, -0.05, 1.43], [-1.0, 0.0, 1.45], [0.25, 0.09, 1.48]], [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[2.19, 0.0, 0.0], [3.19, 0.0, 0.0], [4.19, 0.0, 0.0]], [[3.75, -0.99, 0.08], [2.67, -1.19, 0.33], [1.71, -1.38, 0.55]], [[2.26, -0.96, 0.61], [0.81, -0.59, 0.28], [0.07, -0.4, 0.11]], [[-0.63, 0.26, 0.57], [0.16, 0.88, 0.57], [0.66, 1.26, 0.57]], [[0.75, 1.33, 1.03], [1.61, 0.06, 0.81], [2.2, -0.8, 0.65]], [[3.26, -0.3, -0.97], [4.79, 0.04, -0.97], [5.86, 0.28, -0.97]], [[6.15, -0.06, -0.97], [7.7, 0.04, -0.97], [8.79, 0.11, -0.97]]]
+	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
+	curve_data.dimensions = '3D'
+	curve_data.bevel_resolution = 1
+	curve_data.resolution_u = 8
+	spline = curve_data.splines.new('BEZIER')
+	spline.bezier_points.add( len(points) - 1)
+	for i, p in enumerate(points):
+		spline.bezier_points[i].handle_left = p[0]
+		spline.bezier_points[i].co = p[1]
+		spline.bezier_points[i].handle_right = p[2]
+	curve_obj = bpy.data.objects.new("OverhandKnot", curve_data)
+	bpy.context.collection.objects.link(curve_obj)
+	curve_obj.data.bevel_depth=0.3
+	return curve_obj
+
+def bezier_to_linear(curve_obj, resolution=10):
+	if curve_obj.type != 'CURVE': raise RuntimeError("Error: Input object is not a curve.")
+	# Create a new curve object
+	linear_curve_data = bpy.data.curves.new("LinearCurve", type='CURVE')
+	linear_curve_data.dimensions = '3D'
+	linear_curve_data.resolution_u = 2
+	# Create a spline for the linear curve
+	linear_spline = linear_curve_data.splines.new('POLY')
+	# Iterate through each segment of the Bezier curve
+	for i in range(len(curve_obj.data.splines[0].bezier_points) - 1):
+		# Get control points for the current segment
+		knot1 = curve_obj.data.splines[0].bezier_points[i].co
+		handle1 = curve_obj.data.splines[0].bezier_points[i].handle_right
+		handle2 = curve_obj.data.splines[0].bezier_points[i + 1].handle_left
+		knot2 = curve_obj.data.splines[0].bezier_points[i + 1].co
+		# Resample the current segment
+		interp = mathutils.geometry.interpolate_bezier(knot1, handle1, handle2, knot2, resolution)
+		for j,pnt in enumerate(interp):
+			if i==0 and j==0:
+				pass
+			else:
+				linear_spline.points.add( 1 )
+			linear_spline.points[-1].co = (*pnt, 1.0)  # Add point coordinates
+	linear_curve_obj = bpy.data.objects.new("LinearCurve", linear_curve_data)
+	bpy.context.collection.objects.link(linear_curve_obj)
+	return linear_curve_obj
+
+def test_overhand_knot():
+	cu = create_overhand_knot_curve()
+	cu = bezier_to_linear(cu)
+	info = find_linear_curve_knots(cu)
+	for a in info:
+		if a['valid']:
+			print(a)
+			b = cu.data.splines[0].points[ a['index_first'] ]
+			c = cu.data.splines[0].points[ a['index_last'] ]
+			print('index_first:', b)
+			print('index_last:', c)
+			bpy.ops.object.empty_add()
+			ob = bpy.context.active_object
+			ob.location.x = b.co.x
+			ob.location.y = b.co.y
+			ob.location.z = b.co.z
+			ob.name = 'start:%s' % a['polynomial']
+			ob.empty_display_type = 'SINGLE_ARROW'
+			ob.empty_display_size = 0.8
+			ob.parent = cu
+			ob.show_in_front = True
+
+			bpy.ops.object.empty_add()
+			o = bpy.context.active_object
+			o.location.x = c.co.x
+			o.location.y = c.co.y
+			o.location.z = c.co.z
+			o.name = 'end:%s' % a['polynomial']
+			o.empty_display_size = 0.1
+			o.parent = cu
+			point_and_stretch(ob, o)
+			ob.scale.x = ob.scale.z
+			ob.scale.y = ob.scale.z
 
 if __name__ == '__main__':
 	args = []
@@ -2571,3 +2702,5 @@ if __name__ == '__main__':
 		shaper( bpy.data.worlds[0] )
 	if GLOBALS['trefoil']:
 		test_trefoil()
+	if GLOBALS['overhand-knot']:
+		test_overhand_knot()
