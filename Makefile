@@ -103,3 +103,5 @@ load_shape1_smooth_10: echo_shape1
 
 trefoil:
 	python3 spectre_tiles_blender.py --trefoil
+overhand:
+	python3 spectre_tiles_blender.py --overhand-knot
