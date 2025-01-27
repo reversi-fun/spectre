@@ -125,6 +125,7 @@ GLOBALS = {
 	'knot' : False,
 	'trefoil' : False,
 	'overhand-knot' : False,
+	'no-knotoid' : False,
 }
 
 if '--help' in sys.argv:
@@ -2650,16 +2651,16 @@ if __name__ == '__main__':
 			trace_cu.name = 'events'
 			#trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
-
-			lin_cu = bezier_to_linear(trace_cu)
-			if knotoid:
-				#knots = knotoid.calc_knotoid( ktrace )
-				#knots = find_curve_knots( trace_cu )
-				knots = find_linear_curve_knots( lin_cu )
-				print(knots)
-				make_knot_gizmos( lin_cu, knots )
-			if knotid:
-				gauss = calc_gauss_code( lin_cu )
+			if not GLOBALS['no-knotoid']:
+				lin_cu = bezier_to_linear(trace_cu)
+				if knotoid:
+					#knots = knotoid.calc_knotoid( ktrace )
+					#knots = find_curve_knots( trace_cu )
+					knots = find_linear_curve_knots( lin_cu )
+					print(knots)
+					make_knot_gizmos( lin_cu, knots )
+				if knotid:
+					gauss = calc_gauss_code( lin_cu )
 
 		#bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
