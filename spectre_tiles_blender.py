@@ -1988,27 +1988,46 @@ def find_curve_knots( cu, **kw ):
 	return knotoid.calc_knotoid( points, **kw )
 
 def find_linear_curve_knots( cu, **kw ):
-	assert len(cu.data.splines)==1
 	points = []
-	for pnt in cu.data.splines[0].points:
-		x,y,z,w = pnt.co
-		points.append([x,y,z])
-	return knotoid.calc_knotoid( points, **kw )
-
-def calc_gauss_code( cu ):
-	assert len(cu.data.splines)==1
-	points = []
-	if len(cu.data.splines[0].bezier_points):
-		for pnt in cu.data.splines[0].bezier_points:
-			x,y,z = pnt.handle_left
-			points.append([x,y,z])
-			x,y,z = pnt.co
-			points.append([x,y,z])
-			x,y,z = pnt.handle_right
-			points.append([x,y,z])
-	else:
+	if cu.type=='CURVE':
+		assert len(cu.data.splines)==1
 		for pnt in cu.data.splines[0].points:
 			x,y,z,w = pnt.co
+			points.append([x,y,z])
+	else:
+		layer = cu.data.layers[0]
+		frame = layer.frames[0]
+		print(frame)
+		stroke = frame.strokes[0]
+		for pnt in stroke.points:
+			x,y,z = pnt.co
+			points.append([x,y,z])
+	return knotoid.calc_knotoid( points, **kw )
+
+
+def calc_gauss_code( cu ):
+	points = []
+	if cu.type=='CURVE':
+		assert len(cu.data.splines)==1
+		if len(cu.data.splines[0].bezier_points):
+			for pnt in cu.data.splines[0].bezier_points:
+				x,y,z = pnt.handle_left
+				points.append([x,y,z])
+				x,y,z = pnt.co
+				points.append([x,y,z])
+				x,y,z = pnt.handle_right
+				points.append([x,y,z])
+		else:
+			for pnt in cu.data.splines[0].points:
+				x,y,z,w = pnt.co
+				points.append([x,y,z])
+	else:
+		layer = cu.data.layers[0]
+		frame = layer.frames[0]
+		print(frame)
+		stroke = frame.strokes[0]
+		for pnt in stroke.points:
+			x,y,z = pnt.co
 			points.append([x,y,z])
 
 	k = knotid.sp.SpaceCurve( points )
@@ -2093,7 +2112,7 @@ def create_overhand_knot_curve(rotate_x=True):
 	curve_obj.data.bevel_depth=0.3
 	return curve_obj
 
-def bezier_to_linear(curve_obj, resolution=4):
+def bezier_to_linear_bad(curve_obj, resolution=4):
 	if curve_obj.type != 'CURVE': raise RuntimeError("Error: Input object is not a curve.")
 	# Create a new curve object
 	linear_curve_data = bpy.data.curves.new("LinearCurve", type='CURVE')
@@ -2109,6 +2128,7 @@ def bezier_to_linear(curve_obj, resolution=4):
 		handle2 = curve_obj.data.splines[0].bezier_points[i + 1].handle_left
 		knot2 = curve_obj.data.splines[0].bezier_points[i + 1].co
 		# Resample the current segment
+		# this fails to interpolate handles the same way as blender's BezCurve with twist
 		interp = mathutils.geometry.interpolate_bezier(knot1, handle1, handle2, knot2, resolution)
 		for j,pnt in enumerate(interp):
 			if i==0 and j==0:
@@ -2119,6 +2139,47 @@ def bezier_to_linear(curve_obj, resolution=4):
 	linear_curve_obj = bpy.data.objects.new("LinearCurve", linear_curve_data)
 	bpy.context.collection.objects.link(linear_curve_obj)
 	return linear_curve_obj
+
+def bezier_to_linear(curve_obj, resolution=4, smooth_step=5):
+	copy = curve_obj.copy()
+	copy.data= curve_obj.data.copy()
+	bpy.context.scene.collection.objects.link(copy)
+
+	curve_obj = copy
+	curve_obj.data.bevel_depth=0
+	curve_obj.data.extrude=0
+
+	bpy.ops.object.select_all(action='DESELECT')
+	curve_obj.select_set(True)
+	bpy.context.view_layer.objects.active = curve_obj
+
+	bpy.ops.object.convert(target='MESH')
+	ob = bpy.context.active_object
+	mod = ob.modifiers.new(name='merge', type="WELD")
+	bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+	bpy.ops.object.convert(target='GPENCIL')
+	ob = bpy.context.active_object
+	mod = ob.grease_pencil_modifiers.new(name='simp', type="GP_SIMPLIFY")
+	mod.mode = 'ADAPTIVE'
+	mod.factor = 1.7
+	bpy.ops.object.gpencil_modifier_apply(modifier=mod.name)
+
+	mod = ob.grease_pencil_modifiers.new(name='smooth', type="GP_SMOOTH")
+	mod.step = smooth_step
+	bpy.ops.object.gpencil_modifier_apply(modifier=mod.name)
+
+	mod = ob.grease_pencil_modifiers.new(name='thickness', type="GP_THICK")
+	mod.thickness_factor = 10
+
+	ob.show_in_front = True
+	return ob
+
+	bpy.ops.object.convert(target='CURVE')
+	ob = bpy.context.active_object
+	return ob
+
 
 def test_overhand_knot():
 	cu = create_overhand_knot_curve()
