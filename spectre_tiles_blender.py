@@ -1997,13 +1997,18 @@ def find_linear_curve_knots( cu, **kw ):
 def calc_gauss_code( cu ):
 	assert len(cu.data.splines)==1
 	points = []
-	for pnt in cu.data.splines[0].bezier_points:
-		x,y,z = pnt.handle_left
-		points.append([x,y,z])
-		x,y,z = pnt.co
-		points.append([x,y,z])
-		x,y,z = pnt.handle_right
-		points.append([x,y,z])
+	if len(cu.data.splines[0].bezier_points):
+		for pnt in cu.data.splines[0].bezier_points:
+			x,y,z = pnt.handle_left
+			points.append([x,y,z])
+			x,y,z = pnt.co
+			points.append([x,y,z])
+			x,y,z = pnt.handle_right
+			points.append([x,y,z])
+	else:
+		for pnt in cu.data.splines[0].points:
+			x,y,z,w = pnt.co
+			points.append([x,y,z])
 
 	k = knotid.sp.SpaceCurve( points )
 	print(k)
@@ -2067,8 +2072,11 @@ def point_and_stretch(obj1, obj2):
 	look_at_constraint.up_axis = 'UP_Y' 
 
 
-def create_overhand_knot_curve():
-	points = [[[-4.88, -0.05, 1.43], [-4.18, 0.0, 1.45], [-2.93, 0.09, 1.48]], [[-1.7, -0.05, 1.43], [-1.0, 0.0, 1.45], [0.25, 0.09, 1.48]], [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[2.19, 0.0, 0.0], [3.19, 0.0, 0.0], [4.19, 0.0, 0.0]], [[3.75, -0.99, 0.08], [2.67, -1.19, 0.33], [1.71, -1.38, 0.55]], [[2.26, -0.96, 0.61], [0.81, -0.59, 0.28], [0.07, -0.4, 0.11]], [[-0.63, 0.26, 0.57], [0.16, 0.88, 0.57], [0.66, 1.26, 0.57]], [[0.75, 1.33, 1.03], [1.61, 0.06, 0.81], [2.2, -0.8, 0.65]], [[3.26, -0.3, -0.97], [4.79, 0.04, -0.97], [5.86, 0.28, -0.97]], [[6.15, -0.06, -0.97], [7.7, 0.04, -0.97], [8.79, 0.11, -0.97]]]
+def create_overhand_knot_curve(rotate_x=True):
+	if rotate_x:
+		points = [[[-4.88, 1.06, 0.27], [-4.18, 1.08, 0.21], [-2.93, 1.11, 0.12]], [[-1.7, 1.06, 0.27], [-1.0, 1.08, 0.21], [0.25, 1.11, 0.12]], [[0.0, -0.37, 0.22], [1.0, -0.37, 0.22], [2.0, -0.37, 0.22]], [[2.19, -0.37, 0.22], [3.19, -0.37, 0.22], [4.19, -0.37, 0.22]], [[3.75, -0.29, 1.2], [2.67, -0.04, 1.41], [1.71, 0.18, 1.59]], [[2.26, 0.25, 1.18], [0.81, -0.09, 0.81], [0.07, -0.26, 0.62]], [[-0.63, 0.2, -0.04], [0.16, 0.2, -0.66], [0.66, 0.19, -1.04]], [[0.75, 0.66, -1.11], [1.61, 0.44, 0.15], [2.2, 0.29, 1.02]], [[3.26, -1.34, 0.52], [4.79, -1.34, 0.18], [5.86, -1.34, -0.06]], [[6.15, -1.34, 0.28], [7.7, -1.34, 0.18], [8.79, -1.34, 0.11]]]
+	else:
+		points = [[[-4.88, -0.05, 1.43], [-4.18, 0.0, 1.45], [-2.93, 0.09, 1.48]], [[-1.7, -0.05, 1.43], [-1.0, 0.0, 1.45], [0.25, 0.09, 1.48]], [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[2.19, 0.0, 0.0], [3.19, 0.0, 0.0], [4.19, 0.0, 0.0]], [[3.75, -0.99, 0.08], [2.67, -1.19, 0.33], [1.71, -1.38, 0.55]], [[2.26, -0.96, 0.61], [0.81, -0.59, 0.28], [0.07, -0.4, 0.11]], [[-0.63, 0.26, 0.57], [0.16, 0.88, 0.57], [0.66, 1.26, 0.57]], [[0.75, 1.33, 1.03], [1.61, 0.06, 0.81], [2.2, -0.8, 0.65]], [[3.26, -0.3, -0.97], [4.79, 0.04, -0.97], [5.86, 0.28, -0.97]], [[6.15, -0.06, -0.97], [7.7, 0.04, -0.97], [8.79, 0.11, -0.97]]]
 	curve_data = bpy.data.curves.new(name="BezCurve", type='CURVE')
 	curve_data.dimensions = '3D'
 	curve_data.bevel_resolution = 1
@@ -2084,7 +2092,7 @@ def create_overhand_knot_curve():
 	curve_obj.data.bevel_depth=0.3
 	return curve_obj
 
-def bezier_to_linear(curve_obj, resolution=10):
+def bezier_to_linear(curve_obj, resolution=4):
 	if curve_obj.type != 'CURVE': raise RuntimeError("Error: Input object is not a curve.")
 	# Create a new curve object
 	linear_curve_data = bpy.data.curves.new("LinearCurve", type='CURVE')
@@ -2122,6 +2130,37 @@ def test_overhand_knot():
 			c = cu.data.splines[0].points[ a['index_last'] ]
 			print('index_first:', b)
 			print('index_last:', c)
+			bpy.ops.object.empty_add()
+			ob = bpy.context.active_object
+			ob.location.x = b.co.x
+			ob.location.y = b.co.y
+			ob.location.z = b.co.z
+			ob.name = 'start:%s' % a['polynomial']
+			ob.empty_display_type = 'SINGLE_ARROW'
+			ob.empty_display_size = 0.8
+			ob.parent = cu
+			ob.show_in_front = True
+
+			bpy.ops.object.empty_add()
+			o = bpy.context.active_object
+			o.location.x = c.co.x
+			o.location.y = c.co.y
+			o.location.z = c.co.z
+			o.name = 'end:%s' % a['polynomial']
+			o.empty_display_size = 0.1
+			o.parent = cu
+			point_and_stretch(ob, o)
+			ob.scale.x = ob.scale.z
+			ob.scale.y = ob.scale.z
+
+def make_knot_gizmos(cu, info):
+	for a in info:
+		if a['valid']:
+			print(a)
+			if a['polynomial']=='+1':
+				continue
+			b = cu.data.splines[0].points[ a['index_first'] ]
+			c = cu.data.splines[0].points[ a['index_last'] ]
 			bpy.ops.object.empty_add()
 			ob = bpy.context.active_object
 			ob.location.x = b.co.x
@@ -2612,12 +2651,15 @@ if __name__ == '__main__':
 			#trace_cu.location.x = 100
 			trace_cu.scale.y = 3.3
 
+			lin_cu = bezier_to_linear(trace_cu)
 			if knotoid:
 				#knots = knotoid.calc_knotoid( ktrace )
-				knots = find_curve_knots( trace_cu )
+				#knots = find_curve_knots( trace_cu )
+				knots = find_linear_curve_knots( lin_cu )
 				print(knots)
+				make_knot_gizmos( lin_cu, knots )
 			if knotid:
-				gauss = calc_gauss_code( trace_cu )
+				gauss = calc_gauss_code( lin_cu )
 
 		#bpy.ops.wm.save_as_mainfile(filepath=tmp, check_existing=False)
 		if matplotlib and GLOBALS['plot']:
