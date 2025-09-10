@@ -199,6 +199,10 @@ def buildSupertiles_sympy(input_tiles):
 # Corrected main execution block
 SPECTRE_POINTS_SYM = get_spectre_points_sympy(Edge_a, Edge_b)
 # SPECTRE_QUAD_SYM = sp.Matrix([SPECTRE_POINTS_SYM[3, :], SPECTRE_POINTS_SYM[5, :], SPECTRE_POINTS_SYM[7, :], SPECTRE_POINTS_SYM[11, :]])
+print("Spectre(Gamma1) points=", SPECTRE_POINTS_SYM)
+Mystec_SPECTRE_POINTS_SYM = get_spectre_points_sympy(Edge_b, Edge_a)
+# SPECTRE_QUAD_SYM = sp.Matrix([SPECTRE_POINTS_SYM[3, :], SPECTRE_POINTS_SYM[5, :], SPECTRE_POINTS_SYM[7, :], SPECTRE_POINTS_SYM[11, :]])
+print("Spectre(Gamma2) points=", Mystec_SPECTRE_POINTS_SYM)
 
 # Pass the full points matrix, not the quad, to the function
 current_tiles_sympy = buildSpectreBase_sympy(SPECTRE_POINTS_SYM)
@@ -234,7 +238,11 @@ latex_output = r"""\documentclass{article}
 \date{}
 \maketitle
 
-This document contains the LaTeX representations of the symbolic transformation matrices for the first iteration of the Einstein tiles. These matrices describe the rotation and translation of each sub-tile within the main "Delta" supertile. The transformations are expressed in terms of the symbolic edge lengths, \textbf{Edge\_a} and \textbf{Edge\_b}.
+"""
+
+latex_output += f"This document contains the LaTeX representations of the symbolic transformation matrices for {{n_ITERATIONS}}times iteration of the Spectre tiles. "
+latex_output += r"""These matrices describe the rotation and translation of each sub-tile within the main "Delta" supertile. 
+The transformations are expressed in terms of the symbolic edge lengths, \textbf{Edge\_a} and \textbf{Edge\_b}.
 
 """
 
