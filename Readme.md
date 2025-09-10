@@ -17,6 +17,8 @@ Code ported from JavaScript from the web app [1] provided [2] by the authors of 
        ```python spectre_tiles_drow.py```
     * When drawing with mathplot.plot, the command is : 
        ```python spectre_tiles_plot.py```
+    * When print symbolic points and transforms with sympy, the command is : 
+       ```python symSpectre.py```
     * when customization;
         To ensure that the same pattern is visible no matter which command you use to draw the spectre tile,
         the customization related to the drawing is embedded in the ```spectre.py```
@@ -29,6 +31,6 @@ Code ported from JavaScript from the web app [1] provided [2] by the authors of 
     * In order to reduce the size of the SVG file, 
       the Transform of DrawSVG replaced the matrix with 6 floating-point numbers 
       with a translate with 2 floating-point numbers and a rotate and scale expansion with 3 integers. 
-
+   * Added a function to print symbolic points and transforms with sympy.
 
 ![Rendered tiling ratio sqrt(3)  tile(7.3, 12.7)](./spectre_tile7.3-12.7_3-559useRef.svg)
