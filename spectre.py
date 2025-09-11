@@ -230,7 +230,7 @@ def update_transformation_range(T, _label): # drowsvg
     return
 
 #### main process ####
-def buildSpectreTiles(n_ITERATIONS,edge_a,edge_b):
+def  buildSpectreTiles(n_ITERATIONS,edge_a,edge_b, rotation_b=30):
     global SPECTRE_POINTS, Mystic_SPECTRE_POINTS, SPECTRE_QUAD
 
     SPECTRE_POINTS = get_spectre_points(edge_a, edge_b) # tile(Edge_a, Edge_b)
